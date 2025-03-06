@@ -1,0 +1,78 @@
+.map-container {
+  margin-bottom: 2rem;
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  box-shadow: var(--box-shadow);
+}
+
+.google-map {
+  width: 100%;
+  height: 400px;
+  border: none;
+}
+
+/* Custom styling for Google Maps info windows */
+.info-window {
+  padding: 0.5rem;
+  max-width: 250px;
+}
+
+.info-window h3 {
+  font-size: 1.1rem;
+  margin-bottom: 0.5rem;
+  color: var(--primary-color);
+}
+
+.info-window p {
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  line-height: 1.4;
+}
+
+/* Map controls styling */
+.map-controls {
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem;
+  background-color: white;
+  border-top: 1px solid var(--light-gray);
+}
+
+.map-control-btn {
+  background-color: white;
+  border: 1px solid var(--medium-gray);
+  border-radius: 4px;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.map-control-btn:hover {
+  background-color: var(--light-gray);
+  border-color: var(--dark-gray);
+}
+
+.map-control-btn.active {
+  background-color: var(--primary-color);
+  color: white;
+  border-color: var(--primary-color);
+}
+
+/* Responsive styles */
+@media (max-width: 768px) {
+  .google-map {
+    height: 300px;
+  }
+  
+  .map-controls {
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  
+  .map-control-btn {
+    flex: 1;
+    min-width: 120px;
+    text-align: center;
+  }
+} 
