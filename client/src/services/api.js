@@ -1,3 +1,5 @@
+import axios from 'axios';
+
 const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:3000';
 
 // Helper function to handle API responses
@@ -20,6 +22,11 @@ const createHeaders = (token, contentType = 'application/json') => {
   }
   
   return headers;
+};
+
+// Get the authentication token from localStorage
+const getToken = () => {
+  return localStorage.getItem('authToken');
 };
 
 // API service object
@@ -129,4 +136,58 @@ const api = {
   }
 };
 
-export default api; 
+export default api;
+
+export const savePreferences = async (preferences) => {
+  try {
+    // Format the data for the API
+    const formattedData = {
+      userCategory: preferences.userCategory,
+      commute: preferences.commute,
+      lifestylePreferences: Object.keys(preferences.lifestylePreferences)
+        .filter(key => preferences.lifestylePreferences[key]),
+      customLifestyles: preferences.customLifestyles || [],
+      prioritizedMustHaves: preferences.prioritizedMustHaves || 
+        Object.entries(preferences.mustHaves)
+          .map(([name, priority]) => ({ name, priority }))
+          .sort((a, b) => a.priority - b.priority)
+    };
+
+    console.log('Sending preferences to API:', formattedData);
+    
+    const response = await axios.post(`${API_BASE_URL}/api/housing/recommend-housing`, formattedData, {
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${getToken()}`
+      },
+      withCredentials: true
+    });
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error saving preferences:', error);
+    throw error;
+  }
+};
+
+export const getHousingRecommendations = async (preferences) => {
+  try {
+    console.log('Getting housing recommendations for preferences:', preferences);
+    
+    const response = await axios.post(`${API_BASE_URL}/api/housing/recommend-housing`, 
+      { preferences },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${getToken()}`
+        },
+        withCredentials: true
+      }
+    );
+    
+    return response.data;
+  } catch (error) {
+    console.error('Error getting housing recommendations:', error);
+    throw error;
+  }
+}; 

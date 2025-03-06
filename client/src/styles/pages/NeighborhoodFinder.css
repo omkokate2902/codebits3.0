@@ -224,4 +224,101 @@
   .neighborhoods-grid {
     grid-template-columns: 1fr;
   }
+}
+
+.neighborhood-finder {
+  padding: 20px;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+/* Results container */
+.results-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+}
+
+.map-container {
+  height: 600px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.neighborhoods-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.neighborhoods-list h2 {
+  font-size: 24px;
+  margin-bottom: 20px;
+  color: #4a7c59;
+  border-bottom: 2px solid #f0f0f0;
+  padding-bottom: 10px;
+}
+
+/* Loading state */
+.loading-container {
+  grid-column: span 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 400px;
+}
+
+.loader {
+  border: 5px solid #f3f3f3;
+  border-top: 5px solid #4a7c59;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Error state */
+.error-container {
+  grid-column: span 2;
+  text-align: center;
+  padding: 40px;
+  background-color: #fff3f3;
+  border-radius: 8px;
+  border-left: 4px solid #d32f2f;
+}
+
+.error-container h3 {
+  color: #d32f2f;
+  margin-bottom: 10px;
+}
+
+.error-container button {
+  margin-top: 20px;
+  padding: 10px 20px;
+  background-color: #f0f0f0;
+  border: 1px solid #ddd;
+  border-radius: 5px;
+  cursor: pointer;
+}
+
+.error-container button:hover {
+  background-color: #e0e0e0;
+}
+
+@media (max-width: 768px) {
+  .results-container {
+    grid-template-columns: 1fr;
+  }
+  
+  .map-container {
+    height: 400px;
+  }
 } 

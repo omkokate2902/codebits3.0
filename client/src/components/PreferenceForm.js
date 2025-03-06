@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { API } from '../utils/api';
 import '../styles/components/PreferenceForm.css';
+import { savePreferences } from '../services/api';
 
 const PreferenceForm = ({ onSubmit, onTimelineData }) => {
   const fileInputRef = useRef(null);
@@ -16,28 +17,30 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
     userCategory: 'moderate', // default category
     commute: {
       workAddress: '',
-      maxCommuteDistance: 5, // in kilometers
-      travelMode: 'driving', // default travel mode
-      coordinates: null // will store lat/lng of the address
+      travelMode: 'driving', // default active travel mode for UI
+      coordinates: null, // will store lat/lng of the address
+      travelModes: {
+        walking: { enabled: false, distance: 5 },
+        bicycling: { enabled: false, distance: 10 },
+        transit: { enabled: false, distance: 15 },
+        driving: { enabled: true, distance: 20 }
+      }
     },
-    lifestyle: {
-      nightlife: false,
-      familyFriendly: false,
-      outdoorActivities: false,
-      shopping: false,
-      dining: false,
-      quietNeighborhood: false
-    },
-    mustHaves: {
-      parking: false,
-      publicTransport: false,
-      parks: false,
-      schools: false,
-      groceryStores: false,
-      gym: false
-    }
+    // Store lifestyle preferences as an array of selected items
+    lifestylePreferences: [],
+    // Store must-haves with priority (1 being highest)
+    mustHaves: {},
+    // Store custom lifestyle preferences
+    customLifestyles: []
   });
 
+  // State for new custom lifestyle
+  const [newLifestyle, setNewLifestyle] = useState('');
+
+  // State for drag and drop
+  const [draggedItem, setDraggedItem] = useState(null);
+  const [priorityItems, setPriorityItems] = useState([]);
+  
   const travelModes = [
     { id: 'walking', label: 'Walking', icon: '🚶', maxDistance: 10 },
     { id: 'bicycling', label: 'Bicycling', icon: '🚲', maxDistance: 20 },
@@ -136,12 +139,12 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
   useEffect(() => {
     if (!mapInstance || !geocoder) return;
 
-    const { workAddress, maxCommuteDistance } = preferences.commute;
+    const { workAddress, travelMode } = preferences.commute;
     
     if (workAddress.trim()) {
       geocodeAddress(workAddress);
     }
-  }, [mapInstance, geocoder, preferences.commute.workAddress, preferences.commute.maxCommuteDistance, preferences.commute.travelMode]);
+  }, [mapInstance, geocoder, preferences.commute.workAddress, preferences.commute.travelMode]);
 
   // Geocode address and update map
   const geocodeAddress = (address) => {
@@ -190,33 +193,55 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
   const updateCommuteCircle = (center) => {
     if (!mapInstance) return;
     
-    const { maxCommuteDistance, travelMode } = preferences.commute;
-    
-    // Remove existing circle
+    // Remove existing circles
     if (commuteCircle) {
-      commuteCircle.setMap(null);
+      // If it's an array, clear all circles
+      if (Array.isArray(commuteCircle)) {
+        commuteCircle.forEach(circle => circle.setMap(null));
+      } else {
+        // If it's a single circle, clear it
+        commuteCircle.setMap(null);
+      }
     }
     
-    // Get color based on travel mode
-    const circleColor = getTravelModeColor(travelMode);
+    // Create new circles for each enabled travel mode
+    const circles = [];
+    const bounds = new window.google.maps.LatLngBounds();
+    bounds.extend(center);
     
-    // Create new circle
-    const circle = new window.google.maps.Circle({
-      map: mapInstance,
-      center: center,
-      radius: maxCommuteDistance * 1000, // convert km to meters
-      strokeColor: circleColor,
-      strokeOpacity: 0.8,
-      strokeWeight: 2,
-      fillColor: circleColor,
-      fillOpacity: 0.1
+    // Get all enabled travel modes
+    Object.entries(preferences.commute.travelModes).forEach(([modeId, modeData]) => {
+      if (modeData.enabled) {
+        // Get color based on travel mode
+        const circleColor = getTravelModeColor(modeId);
+        
+        // Create new circle
+        const circle = new window.google.maps.Circle({
+          map: mapInstance,
+          center: center,
+          radius: modeData.distance * 1000, // convert km to meters
+          strokeColor: circleColor,
+          strokeOpacity: 0.8,
+          strokeWeight: 2,
+          fillColor: circleColor,
+          fillOpacity: 0.1
+        });
+        
+        circles.push(circle);
+        
+        // Extend bounds to include this circle
+        const circleBounds = circle.getBounds();
+        if (circleBounds) {
+          bounds.union(circleBounds);
+        }
+      }
     });
     
-    setCommuteCircle(circle);
+    // Store all circles
+    setCommuteCircle(circles);
     
-    // Adjust map zoom to fit circle
-    const bounds = circle.getBounds();
-    if (bounds) {
+    // Adjust map zoom to fit all circles
+    if (circles.length > 0) {
       mapInstance.fitBounds(bounds);
     }
   };
@@ -243,14 +268,39 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
     });
   };
 
-  const handleCheckboxChange = (category, field) => {
-    setPreferences({
-      ...preferences,
-      [category]: {
-        ...preferences[category],
-        [field]: !preferences[category][field]
-      }
-    });
+  const handleCheckboxChange = (category, item) => {
+    if (category === 'lifestylePreferences') {
+      setPreferences(prev => {
+        // If item is already in the array, remove it, otherwise add it
+        const newPreferences = prev.lifestylePreferences.includes(item)
+          ? prev.lifestylePreferences.filter(i => i !== item)
+          : [...prev.lifestylePreferences, item];
+          
+        return {
+          ...prev,
+          lifestylePreferences: newPreferences
+        };
+      });
+    } else if (category === 'mustHaves') {
+      setPreferences(prev => {
+        // Toggle the must-have item
+        const newMustHaves = { ...prev.mustHaves };
+        
+        if (newMustHaves[item]) {
+          // If it already exists, remove it
+          delete newMustHaves[item];
+        } else {
+          // Add it with the next priority number
+          const nextPriority = Object.keys(newMustHaves).length + 1;
+          newMustHaves[item] = nextPriority;
+        }
+        
+        return {
+          ...prev,
+          mustHaves: newMustHaves
+        };
+      });
+    }
   };
 
   const handleCategorySelect = (categoryId) => {
@@ -265,15 +315,35 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
     const selectedMode = travelModes.find(mode => mode.id === modeId);
     
     // Update preferences with new travel mode
-    setPreferences(prev => ({
-      ...prev,
-      commute: {
-        ...prev.commute,
-        travelMode: modeId,
-        // If current distance exceeds max for this mode, adjust it
-        maxCommuteDistance: Math.min(prev.commute.maxCommuteDistance, selectedMode.maxDistance)
-      }
-    }));
+    setPreferences(prev => {
+      // Toggle the enabled state for this travel mode
+      const isCurrentlyEnabled = prev.commute.travelModes[modeId].enabled;
+      
+      return {
+        ...prev,
+        commute: {
+          ...prev.commute,
+          // Set this as the active travel mode for UI
+          travelMode: modeId,
+          travelModes: {
+            ...prev.commute.travelModes,
+            [modeId]: {
+              ...prev.commute.travelModes[modeId],
+              enabled: !isCurrentlyEnabled,
+              // If enabling, ensure distance is within limits
+              distance: !isCurrentlyEnabled 
+                ? Math.min(prev.commute.travelModes[modeId].distance, selectedMode.maxDistance)
+                : prev.commute.travelModes[modeId].distance
+            }
+          }
+        }
+      };
+    });
+    
+    // If coordinates exist, update the circle on the map
+    if (preferences.commute.coordinates) {
+      updateCommuteCircle(preferences.commute.coordinates);
+    }
   };
 
   const handleFileChange = (e) => {
@@ -303,58 +373,31 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
     formData.append('file', selectedFile);
 
     try {
-      const xhr = new XMLHttpRequest();
+      // Use our API utility instead of XMLHttpRequest
+      const response = await API.user.uploadFile(formData);
       
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable) {
-          const progress = Math.round((event.loaded / event.total) * 100);
-          setUploadProgress(progress);
-        }
-      });
-
-      xhr.addEventListener('load', () => {
-        if (xhr.status === 200) {
-          setUploadStatus('success');
-          // Parse the response and update preferences based on the analysis
-          try {
-            const response = JSON.parse(xhr.responseText);
-            console.log('Upload successful:', response);
-            
-            // If the server returns timeline data, pass it to the parent component
-            if (response.timelineData && onTimelineData) {
-              onTimelineData(response.timelineData);
-            }
-            
-            // If the server suggests a user category, update it
-            if (response.suggestedCategory) {
-              setPreferences(prev => ({
-                ...prev,
-                userCategory: response.suggestedCategory
-              }));
-            }
-          } catch (error) {
-            console.error('Error parsing response:', error);
-          }
-        } else {
-          setUploadStatus('error');
-          console.error('Upload failed:', xhr.statusText);
-        }
-      });
-
-      xhr.addEventListener('error', () => {
-        setUploadStatus('error');
-        console.error('Upload failed due to network error');
-      });
-
-      xhr.open('POST', 'http://localhost:3000/api/upload');
-      xhr.send(formData);
+      setUploadStatus('success');
+      console.log('Upload successful:', response);
+      
+      // If the server returns timeline data, pass it to the parent component
+      if (response.timelineData && onTimelineData) {
+        onTimelineData(response.timelineData);
+      }
+      
+      // If the server suggests a user category, update it
+      if (response.suggestedCategory) {
+        setPreferences(prev => ({
+          ...prev,
+          userCategory: response.suggestedCategory
+        }));
+      }
     } catch (error) {
       setUploadStatus('error');
-      console.error('Error uploading file:', error);
+      console.error('Upload failed:', error);
     }
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
     // Validate that work address is provided if commute is important
@@ -363,27 +406,285 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
       return;
     }
     
-    // Save preferences to backend
-    savePreferencesToBackend(preferences);
+    // Count selected lifestyle preferences
+    const selectedLifestyleCount = 
+      preferences.lifestylePreferences.length + 
+      Object.keys(preferences.mustHaves).length +
+      preferences.customLifestyles.filter(item => item.value).length;
     
-    // Pass the preferences to the parent component
-    onSubmit(preferences);
-  };
-  
-  const savePreferencesToBackend = async (preferencesData) => {
+    // Validate at least 3 lifestyle preferences are selected
+    if (selectedLifestyleCount < 3) {
+      alert('Please select at least 3 lifestyle preferences.');
+      return;
+    }
+    
     try {
-      const data = await API.user.savePreferences(preferencesData);
-      console.log('Preferences saved successfully:', data);
-      return true;
+      // Prepare the final data to be sent
+      const finalPreferences = {
+        ...preferences,
+        // Format must-haves as an array of objects with name and priority
+        prioritizedMustHaves: priorityItems.map((item, index) => ({
+          name: item.name,
+          priority: index + 1
+        })),
+        // Convert customLifestyles array to object for consistency
+        customLifestylePreferences: preferences.customLifestyles.reduce((acc, item) => {
+          if (item.value) {
+            acc[item.name.toLowerCase().replace(/\s+/g, '_')] = true;
+          }
+          return acc;
+        }, {})
+      };
+      
+      // Log the data being sent to the backend
+      console.log('Sending preferences to backend:', finalPreferences);
+      
+      // Save preferences to backend using the API service
+      await savePreferences(finalPreferences);
+      
+      // Show success message to user
+      alert('Your preferences have been saved successfully!');
+      
+      // Pass the preferences to the parent component
+      onSubmit(finalPreferences);
     } catch (error) {
       console.error('Error saving preferences:', error);
-      alert('An error occurred while saving your preferences. Please try again.');
-      return false;
+      
+      // Show error message to user
+      alert(`Error saving preferences: ${error.message || 'Unknown error occurred. Please try again.'}`);
     }
   };
 
   // Get the current travel mode object
   const currentTravelMode = travelModes.find(mode => mode.id === preferences.commute.travelMode) || travelModes[3];
+
+  // Function to add a new custom lifestyle
+  const addCustomLifestyle = () => {
+    if (!newLifestyle.trim()) return;
+    
+    // Check if this lifestyle already exists in the default ones
+    if (Object.keys(preferences.lifestylePreferences).includes(newLifestyle.toLowerCase().replace(/\s+/g, ''))) {
+      alert('This lifestyle preference already exists!');
+      return;
+    }
+    
+    // Check if it already exists in custom lifestyles
+    if (preferences.customLifestyles.some(item => 
+      item.name.toLowerCase() === newLifestyle.toLowerCase())) {
+      alert('This lifestyle preference already exists!');
+      return;
+    }
+    
+    // Add the new custom lifestyle
+    setPreferences(prev => ({
+      ...prev,
+      customLifestyles: [
+        ...prev.customLifestyles,
+        { name: newLifestyle, value: true }
+      ]
+    }));
+    
+    // Clear the input
+    setNewLifestyle('');
+  };
+
+  // Function to handle custom lifestyle checkbox change
+  const handleCustomLifestyleChange = (index) => {
+    setPreferences(prev => ({
+      ...prev,
+      customLifestyles: prev.customLifestyles.map((item, i) => 
+        i === index ? { ...item, value: !item.value } : item
+      )
+    }));
+  };
+
+  // Function to remove a custom lifestyle
+  const removeCustomLifestyle = (index) => {
+    setPreferences(prev => ({
+      ...prev,
+      customLifestyles: prev.customLifestyles.filter((_, i) => i !== index)
+    }));
+  };
+
+  // Function to validate the JSON data format
+  const validateDataFormat = (data) => {
+    // Check if the data has the required structure
+    if (!data.userCategory) {
+      console.warn('Missing userCategory in preferences data');
+    }
+    
+    if (!data.commute || !data.commute.travelModes) {
+      console.warn('Missing commute data or travel modes in preferences data');
+    }
+    
+    // Count selected lifestyle preferences
+    const lifestyleCount = data.lifestylePreferences.length;
+    const mustHavesCount = Object.keys(data.mustHaves).length;
+    const customCount = (data.customLifestyles || []).filter(item => item.value).length;
+    
+    console.log(`Selected preferences: ${lifestyleCount} lifestyle, ${mustHavesCount} must-haves, ${customCount} custom`);
+    
+    if (lifestyleCount + mustHavesCount + customCount < 3) {
+      console.warn('Less than 3 lifestyle preferences selected');
+    }
+    
+    // Check if prioritizedMustHaves is properly formatted
+    if (data.prioritizedMustHaves) {
+      console.log('Prioritized must-haves:', data.prioritizedMustHaves);
+      
+      // Check if priorities are sequential
+      const priorities = data.prioritizedMustHaves.map(item => item.priority);
+      const isSequential = priorities.every((p, i) => p === i + 1);
+      
+      if (!isSequential) {
+        console.warn('Priorities are not sequential');
+      }
+    }
+    
+    // Check if the format matches the expected format
+    const expectedFormat = {
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      method: "POST",
+      body: JSON.stringify({ preferences: data })
+    };
+    
+    return expectedFormat;
+  };
+
+  // All available lifestyle options
+  const lifestyleOptions = [
+    'accessibility', 'activeLifestyle', 'affordability', 'amenities', 
+    'artsAndMusic', 'casual', 'casualDining', 'cleanliness', 
+    'community', 'convenient', 'cultural', 'entertainment', 
+    'familyFriendly', 'fineDining', 'greenSpaces', 'healthy', 
+    'internationalCuisine', 'nightlife', 'outdoorActivities', 
+    'quiet', 'quietness', 'relaxing', 'safety', 'shopping', 
+    'socialGatherings'
+  ];
+
+  // Must-have options
+  const mustHaveOptions = [
+    'parking', 'publicTransport', 'parks', 'schools', 'groceryStores', 'gym'
+  ];
+
+  // Function to get the priority label
+  const getPriorityLabel = (item) => {
+    const priority = preferences.mustHaves[item];
+    if (!priority) return '';
+    return `Priority ${priority}`;
+  };
+
+  // Effect to initialize priority items from must-haves
+  useEffect(() => {
+    // Convert must-haves object to array of items with priorities
+    const items = Object.entries(preferences.mustHaves).map(([name, priority]) => ({
+      name,
+      priority
+    }));
+    
+    // Sort by priority
+    items.sort((a, b) => a.priority - b.priority);
+    
+    setPriorityItems(items);
+  }, [preferences.mustHaves]);
+  
+  // Handle drag start
+  const handleDragStart = (e, item) => {
+    setDraggedItem(item);
+    e.dataTransfer.effectAllowed = 'move';
+    // For Firefox
+    e.dataTransfer.setData('text/plain', item.name);
+  };
+  
+  // Handle drag over
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  };
+  
+  // Handle drop
+  const handleDrop = (e, targetIndex) => {
+    e.preventDefault();
+    
+    if (draggedItem) {
+      const newItems = [...priorityItems];
+      const draggedIndex = newItems.findIndex(item => item.name === draggedItem.name);
+      
+      // Remove the dragged item
+      const [removed] = newItems.splice(draggedIndex, 1);
+      
+      // Insert at the new position
+      newItems.splice(targetIndex, 0, removed);
+      
+      // Update priorities
+      const updatedItems = newItems.map((item, index) => ({
+        ...item,
+        priority: index + 1
+      }));
+      
+      setPriorityItems(updatedItems);
+      
+      // Update preferences.mustHaves
+      const newMustHaves = {};
+      updatedItems.forEach(item => {
+        newMustHaves[item.name] = item.priority;
+      });
+      
+      setPreferences(prev => ({
+        ...prev,
+        mustHaves: newMustHaves
+      }));
+      
+      setDraggedItem(null);
+    }
+  };
+  
+  // Handle adding an item to priorities
+  const addToPriorities = (item) => {
+    // Check if already in priorities
+    if (priorityItems.some(i => i.name === item)) return;
+    
+    // Add to the end with next priority
+    const nextPriority = priorityItems.length + 1;
+    const newItem = { name: item, priority: nextPriority };
+    
+    const newItems = [...priorityItems, newItem];
+    setPriorityItems(newItems);
+    
+    // Update preferences.mustHaves
+    const newMustHaves = { ...preferences.mustHaves };
+    newMustHaves[item] = nextPriority;
+    
+    setPreferences(prev => ({
+      ...prev,
+      mustHaves: newMustHaves
+    }));
+  };
+  
+  // Handle removing an item from priorities
+  const removeFromPriorities = (item) => {
+    const newItems = priorityItems.filter(i => i.name !== item);
+    
+    // Recalculate priorities
+    const updatedItems = newItems.map((item, index) => ({
+      ...item,
+      priority: index + 1
+    }));
+    
+    setPriorityItems(updatedItems);
+    
+    // Update preferences.mustHaves
+    const newMustHaves = {};
+    updatedItems.forEach(item => {
+      newMustHaves[item.name] = item.priority;
+    });
+    
+    setPreferences(prev => ({
+      ...prev,
+      mustHaves: newMustHaves
+    }));
+  };
 
   return (
     <form className="preference-form" onSubmit={handleSubmit}>
@@ -490,16 +791,25 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
           <label>How will you travel?</label>
           <div className="travel-modes">
             {travelModes.map((mode) => (
-              <div 
+              <div
                 key={mode.id}
-                className={`travel-mode ${preferences.commute.travelMode === mode.id ? 'selected' : ''}`}
+                className={`travel-mode ${preferences.commute.travelMode === mode.id ? 'active' : ''} ${preferences.commute.travelModes[mode.id].enabled ? 'enabled' : ''}`}
                 onClick={() => handleTravelModeSelect(mode.id)}
-                style={{ borderColor: preferences.commute.travelMode === mode.id ? getTravelModeColor(mode.id) : 'transparent' }}
+                style={{ 
+                  borderColor: preferences.commute.travelModes[mode.id].enabled 
+                    ? getTravelModeColor(mode.id) 
+                    : 'transparent' 
+                }}
               >
                 <div className="travel-mode-icon" style={{ backgroundColor: getTravelModeColor(mode.id) }}>
                   {mode.icon}
                 </div>
-                <span className="travel-mode-label">{mode.label}</span>
+                <div className="travel-mode-label">{mode.label}</div>
+                {preferences.commute.travelModes[mode.id].enabled && (
+                  <div className="travel-mode-distance">
+                    {preferences.commute.travelModes[mode.id].distance} km
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -507,15 +817,21 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
         
         <div className="distance-slider-container">
           <label>
-            Maximum Travel Distance: <span className="distance-value">{preferences.commute.maxCommuteDistance} km</span>
+            Maximum Travel Distance: <span className="distance-value">{preferences.commute.travelModes[preferences.commute.travelMode].distance} km</span>
           </label>
           <input
             type="range"
             min="1"
             max={currentTravelMode.maxDistance}
             step="1"
-            value={preferences.commute.maxCommuteDistance}
-            onChange={(e) => handleInputChange('commute', 'maxCommuteDistance', parseInt(e.target.value))}
+            value={preferences.commute.travelModes[preferences.commute.travelMode].distance}
+            onChange={(e) => handleInputChange('commute', 'travelModes', {
+              ...preferences.commute.travelModes,
+              [preferences.commute.travelMode]: {
+                ...preferences.commute.travelModes[preferences.commute.travelMode],
+                distance: parseInt(e.target.value)
+              }
+            })}
             className="distance-slider"
           />
           <div className="distance-range">
@@ -535,40 +851,128 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
       </div>
 
       <div className="form-section">
-        <h3>Lifestyle Preferences</h3>
-        <div className="checkbox-group">
-          {Object.keys(preferences.lifestyle).map((item) => (
-            <div key={item} className="checkbox-item">
-              <input
-                type="checkbox"
-                id={`lifestyle-${item}`}
-                checked={preferences.lifestyle[item]}
-                onChange={() => handleCheckboxChange('lifestyle', item)}
-              />
-              <label htmlFor={`lifestyle-${item}`}>{item.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}</label>
+        <h2>What is important to you?</h2>
+        <p className="section-description">We use these lifestyle preferences to help you narrow down the best places to visit, so please select at least 3. You can always change these later.</p>
+        
+        <div className="lifestyle-grid">
+          {lifestyleOptions.map((item) => (
+            <div 
+              key={item} 
+              className={`lifestyle-item ${preferences.lifestylePreferences.includes(item) ? 'selected' : ''}`}
+              onClick={() => handleCheckboxChange('lifestylePreferences', item)}
+            >
+              {item.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}
             </div>
           ))}
+          
+          {/* Custom lifestyle preferences */}
+          {preferences.customLifestyles.map((item, index) => (
+            <div 
+              key={`custom-${index}`} 
+              className={`lifestyle-item ${item.value ? 'selected' : ''}`}
+              onClick={() => handleCustomLifestyleChange(index)}
+            >
+              {item.name}
+              <button
+                type="button"
+                className="remove-btn"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  removeCustomLifestyle(index);
+                }}
+                aria-label={`Remove ${item.name}`}
+              >
+                ×
+              </button>
+            </div>
+          ))}
+          
+          {/* Add new preference button */}
+          <div className="lifestyle-item add-preference">
+            <input
+              type="text"
+              value={newLifestyle}
+              onChange={(e) => setNewLifestyle(e.target.value)}
+              placeholder="Add a New Preference Here"
+              className="new-preference-input"
+              onKeyPress={(e) => {
+                if (e.key === 'Enter' && newLifestyle.trim()) {
+                  e.preventDefault();
+                  addCustomLifestyle();
+                }
+              }}
+            />
+            <button
+              type="button"
+              className="add-btn"
+              onClick={addCustomLifestyle}
+              disabled={!newLifestyle.trim()}
+            >
+              +
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="form-section">
-        <h3>Must-Haves</h3>
-        <div className="checkbox-group">
-          {Object.keys(preferences.mustHaves).map((item) => (
-            <div key={item} className="checkbox-item">
-              <input
-                type="checkbox"
-                id={`mustHave-${item}`}
-                checked={preferences.mustHaves[item]}
-                onChange={() => handleCheckboxChange('mustHaves', item)}
-              />
-              <label htmlFor={`mustHave-${item}`}>{item.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}</label>
+        <h2>What Matters Most for You?</h2>
+        <p className="section-description">Drag and drop to set priorities for what matters most in your neighborhood.</p>
+        
+        <div className="priority-section">
+          <div className="priority-list">
+            {priorityItems.map((item, index) => (
+              <div 
+                key={item.name}
+                className="priority-item"
+                draggable
+                onDragStart={(e) => handleDragStart(e, item)}
+                onDragOver={(e) => handleDragOver(e, index)}
+                onDrop={(e) => handleDrop(e, index)}
+              >
+                <div className="priority-rank">{index + 1}</div>
+                <div className="priority-name">
+                  {item.name.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}
+                </div>
+                <button
+                  type="button"
+                  className="remove-btn"
+                  onClick={() => removeFromPriorities(item.name)}
+                  aria-label={`Remove ${item.name}`}
+                >
+                  ×
+                </button>
+              </div>
+            ))}
+            {priorityItems.length === 0 && (
+              <div className="empty-priorities">
+                <p>Select items from below to add to your priorities</p>
+              </div>
+            )}
+          </div>
+          
+          <div className="available-items">
+            <h3>Available Items</h3>
+            <div className="available-items-grid">
+              {mustHaveOptions.map((item) => (
+                <div 
+                  key={item}
+                  className={`available-item ${priorityItems.some(i => i.name === item) ? 'in-list' : ''}`}
+                  onClick={() => !priorityItems.some(i => i.name === item) && addToPriorities(item)}
+                >
+                  {item.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}
+                  {!priorityItems.some(i => i.name === item) && (
+                    <span className="add-icon">+</span>
+                  )}
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
       </div>
 
-      <button type="submit" className="submit-btn">Find Neighborhoods</button>
+      <div className="form-actions">
+        <button type="submit" className="submit-btn">Find My Perfect Neighborhood</button>
+      </div>
     </form>
   );
 };

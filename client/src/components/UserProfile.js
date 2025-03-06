@@ -1,9 +1,12 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
+import { API } from "../utils/api";
+import "../styles/components/UserProfile.css";
 
 const UserProfile = () => {
   const [user, setUser] = useState(null);
   const [file, setFile] = useState(null);
   const [uploadMessage, setUploadMessage] = useState("");
+  const fileInputRef = useRef(null);
 
   // Fetch user details from Flask
   useEffect(() => {
@@ -38,13 +41,10 @@ const UserProfile = () => {
     formData.append("file", file);
 
     try {
-      const response = await fetch("http://127.0.0.1:3000/upload", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await response.json();
-      setUploadMessage(data.message || data.error);
+      const data = await API.user.uploadFile(formData);
+      setUploadMessage(data.message || "File uploaded successfully!");
+      setFile(null);
+      fileInputRef.current.value = "";
     } catch (error) {
       setUploadMessage("File upload failed.");
       console.error("Upload error:", error);
@@ -62,7 +62,7 @@ const UserProfile = () => {
           {/* File Upload */}
           <div>
             <h3>Upload a TXT File</h3>
-            <input type="file" accept=".txt" onChange={handleFileChange} />
+            <input type="file" accept=".txt" onChange={handleFileChange} ref={fileInputRef} />
             <button onClick={handleFileUpload}>Upload</button>
             {uploadMessage && <p>{uploadMessage}</p>}
           </div>

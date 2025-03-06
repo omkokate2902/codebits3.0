@@ -12,17 +12,22 @@ const defaultOptions = {
 // Helper function for API calls
 export const apiCall = async (endpoint, options = {}) => {
   const url = `${API_BASE_URL}${endpoint}`;
+  
+  // Special handling for FormData (file uploads)
+  const isFormData = options.body instanceof FormData;
+  
   const fetchOptions = {
     ...defaultOptions,
     ...options,
-    headers: {
+    // For FormData, don't set any headers to let the browser set the correct Content-Type with boundary
+    headers: isFormData ? {} : {
       ...defaultOptions.headers,
       ...options.headers,
     },
   };
 
   try {
-    console.log(`Making API call to: ${url}`, fetchOptions);
+    console.log(`Making API call to: ${url}`, isFormData ? 'FormData upload' : fetchOptions);
     
     // Make the fetch request
     const response = await fetch(url, fetchOptions);
@@ -73,14 +78,17 @@ export const API = {
   },
   user: {
     getProfile: () => apiCall('/api/user/profile'),
-    savePreferences: (preferences) => apiCall('/api/user/preferences', {
+    savePreferences: (preferences) => apiCall('/api/housing/recommend-housing', {
       method: 'POST',
       body: JSON.stringify({ preferences }),
     }),
-    getPreferences: () => apiCall('/api/user/preferences'),
+    getPreferences: () => apiCall('/api/housing/recommend-housing'),
+    getPersona: (preferences) => apiCall('/api/user/persona', {
+      method: 'POST',
+      body: JSON.stringify({ preferences }),
+    }),
     uploadFile: (formData) => apiCall('/api/upload', {
       method: 'POST',
-      headers: {}, // Let the browser set the correct Content-Type with boundary
       body: formData,
       credentials: 'include',
     }),
