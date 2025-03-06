@@ -1,6 +1,7 @@
 import React from "react";
 import { auth, provider, signInWithPopup } from "../firebase";
 import { useNavigate } from "react-router-dom";
+import { API } from "../utils/api";
 
 const Login = ({ setUser }) => {
   const navigate = useNavigate();
@@ -10,18 +11,13 @@ const Login = ({ setUser }) => {
       const result = await signInWithPopup(auth, provider);
       const idToken = await result.user.getIdToken();
 
-      const response = await fetch("http://127.0.0.1:3000/verify-token", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idToken }),
-      });
-
-      const data = await response.json();
-      if (response.ok) {
+      try {
+        const data = await API.auth.verifyToken(idToken);
         setUser(data.user);
-        navigate("/profile");
-      } else {
-        console.error("Login failed:", data.error);
+        // Redirect to the neighborhood finder page
+        navigate("/neighborhood-finder");
+      } catch (error) {
+        console.error("Login failed:", error);
       }
     } catch (error) {
       console.error("Google Auth error:", error);
@@ -29,9 +25,12 @@ const Login = ({ setUser }) => {
   };
 
   return (
-    <div>
-      <h2>Login with Google</h2>
-      <button onClick={handleLogin}>Login</button>
+    <div className="login-container">
+      <h2>Welcome to Neighborhood Finder</h2>
+      <p>Find your perfect neighborhood based on your preferences and lifestyle</p>
+      <button className="login-button" onClick={handleLogin}>
+        Login with Google
+      </button>
     </div>
   );
 };

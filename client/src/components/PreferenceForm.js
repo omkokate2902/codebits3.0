@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { API } from '../utils/api';
 import '../styles/components/PreferenceForm.css';
 
 const PreferenceForm = ({ onSubmit, onTimelineData }) => {
@@ -345,7 +346,7 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
         console.error('Upload failed due to network error');
       });
 
-      xhr.open('POST', 'http://192.168.0.118:3000/api/upload');
+      xhr.open('POST', 'http://localhost:3000/api/upload');
       xhr.send(formData);
     } catch (error) {
       setUploadStatus('error');
@@ -355,7 +356,30 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
 
   const handleSubmit = (e) => {
     e.preventDefault();
+    
+    // Validate that work address is provided if commute is important
+    if (preferences.commute.workAddress && !preferences.commute.coordinates) {
+      alert('Please enter a valid work address and click "Locate" to set your commute preferences.');
+      return;
+    }
+    
+    // Save preferences to backend
+    savePreferencesToBackend(preferences);
+    
+    // Pass the preferences to the parent component
     onSubmit(preferences);
+  };
+  
+  const savePreferencesToBackend = async (preferencesData) => {
+    try {
+      const data = await API.user.savePreferences(preferencesData);
+      console.log('Preferences saved successfully:', data);
+      return true;
+    } catch (error) {
+      console.error('Error saving preferences:', error);
+      alert('An error occurred while saving your preferences. Please try again.');
+      return false;
+    }
   };
 
   // Get the current travel mode object

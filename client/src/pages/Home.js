@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import GoogleLogin from '../components/GoogleLogin';
 import '../styles/pages/Home.css';
+import TestMap from "../components/TestMap"
 
 const Home = () => {
   return (
@@ -16,7 +17,8 @@ const Home = () => {
           </div>
         </div>
         <div className="hero-image">
-          <img src="/images/hero-image.jpg" alt="City skyline" />
+          {/* <img src="/images/hero-image.jpg" alt="City skyline" /> */}
+          <TestMap />
         </div>
       </section>
 
