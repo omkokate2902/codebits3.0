@@ -51,7 +51,7 @@ const PlaceRecommender = () => {
       setError(null);
 
       // API call to backend
-      const response = await fetch('http://192.168.0.118:3000/places/recommendations', {
+      const response = await fetch('http://localhost:3000/places/recommendations', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

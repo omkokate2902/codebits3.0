@@ -46,7 +46,7 @@ const ChatBot = () => {
     
     try {
       // Send message to backend
-      const response = await fetch('http://192.168.0.118:3000/bot/message', {
+      const response = await fetch('http://localhost:3000/bot/message', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

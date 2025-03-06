@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import PreferenceForm from '../components/PreferenceForm';
 import NeighborhoodCard from '../components/NeighborhoodCard';
 import MapView from '../components/MapView';
+import { API } from '../utils/api';
 import '../styles/pages/NeighborhoodFinder.css';
 
 const NeighborhoodFinder = () => {
@@ -29,6 +30,23 @@ const NeighborhoodFinder = () => {
     driving: 40
   };
 
+  // Load user preferences from backend when component mounts
+  useEffect(() => {
+    const loadUserPreferences = async () => {
+      try {
+        const data = await API.user.getPreferences();
+        if (data.preferences) {
+          console.log('Loaded user preferences:', data.preferences);
+          setPreferences(data.preferences);
+        }
+      } catch (error) {
+        console.error('Error loading preferences:', error);
+      }
+    };
+    
+    loadUserPreferences();
+  }, []);
+
   const fetchNeighborhoods = useCallback(async () => {
     try {
       setLoading(true);
@@ -55,7 +73,7 @@ const NeighborhoodFinder = () => {
       };
 
       // API call to backend
-      const response = await fetch('http://192.168.0.118:3000/neighborhoods/search', {
+      const response = await fetch('http://localhost:3000/neighborhoods/search', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
