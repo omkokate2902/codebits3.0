@@ -1,8 +1,10 @@
 from flask import Flask, jsonify, session, request
 from flask_cors import CORS
 from routes.auth_routes import auth_bp
+from routes.housing_routes import housing_bp
 from routes.user_routes import user_routes
 from routes.upload_routes import upload_routes  # Import missing routes
+from routes.chatbot_routes import chatbot_bp  # Import missing routes
 import os
 from datetime import timedelta
 
@@ -36,6 +38,11 @@ app.register_blueprint(user_routes, url_prefix="/api/user")
 
 # Register file upload routes
 app.register_blueprint(upload_routes, url_prefix="/api")  # 🔹 Added "/api"
+
+app.register_blueprint(housing_bp)
+
+app.register_blueprint(chatbot_bp)  # 🔹 Added chatbot routes
+
 
 @app.route("/", methods=["GET"])
 def health_check():
