@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import PreferenceForm from '../components/PreferenceForm';
+import ReviewSelection from '../components/ReviewSelection';
 import NeighborhoodCard from '../components/NeighborhoodCard';
 import MapView from '../components/MapView';
 import { API } from '../utils/api';
@@ -12,6 +13,8 @@ const NeighborhoodFinder = () => {
   const [error, setError] = useState(null);
   const [mapLocations, setMapLocations] = useState([]);
   const [timelineData, setTimelineData] = useState(null);
+  const [currentStep, setCurrentStep] = useState('form'); // 'form', 'review', or 'results'
+  const [reviewPreferences, setReviewPreferences] = useState(null);
 
   // Price ranges for each user category in INR
   const categoryPriceRanges = {
@@ -48,244 +51,116 @@ const NeighborhoodFinder = () => {
   }, []);
 
   const fetchNeighborhoods = useCallback(async () => {
+    if (!preferences) return;
+    
+    setLoading(true);
+    setError(null);
+    
     try {
-      setLoading(true);
-      setError(null);
-
-      // Convert user category to budget range
-      const userCategory = preferences.userCategory;
-      const budgetRange = categoryPriceRanges[userCategory];
-
-      // Calculate approximate commute time based on distance and travel mode
-      const { maxCommuteDistance, travelMode } = preferences.commute;
-      const speedKmh = travelModeSpeeds[travelMode] || travelModeSpeeds.driving;
-      const approximateCommuteTime = Math.round((maxCommuteDistance / speedKmh) * 60); // in minutes
-
-      // Prepare data for API call
-      const requestData = {
-        ...preferences,
-        budget: budgetRange,
-        commute: {
-          ...preferences.commute,
-          approximateCommuteTime
-        },
-        timelineData: timelineData
-      };
-
-      // API call to backend
-      const response = await fetch('http://localhost:3000/neighborhoods/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch neighborhoods');
-      }
-
-      const data = await response.json();
-      setNeighborhoods(data.neighborhoods);
+      // Make API call to get neighborhood recommendations
+      const data = await API.neighborhoods.search(preferences);
+      setNeighborhoods(data.neighborhoods || []);
       
-      // Format data for map
-      const locations = data.neighborhoods.map(neighborhood => ({
-        name: neighborhood.name,
-        description: `${neighborhood.name} - Avg. Rent: ₹${neighborhood.averageRent}/mo`,
-        address: `${neighborhood.name}, ${neighborhood.city}, ${neighborhood.state}`,
-        latitude: neighborhood.latitude,
-        longitude: neighborhood.longitude
+      // Prepare map locations from neighborhoods
+      const locations = data.neighborhoods.map(n => ({
+        latitude: n.location.lat,
+        longitude: n.location.lng,
+        name: n.name,
+        description: n.description
       }));
       
       setMapLocations(locations);
-      
-    } catch (err) {
-      console.error('Error fetching neighborhoods:', err);
-      setError('Failed to fetch neighborhoods. Please try again.');
+      setCurrentStep('results');
+    } catch (error) {
+      console.error('Error fetching neighborhoods:', error);
+      setError('Failed to fetch neighborhood recommendations. Please try again.');
     } finally {
       setLoading(false);
     }
-  }, [preferences, timelineData]);
-
-  useEffect(() => {
-    if (preferences) {
-      fetchNeighborhoods();
-    }
-  }, [preferences, fetchNeighborhoods]);
+  }, [preferences]);
 
   const handlePreferenceSubmit = (formData) => {
-    setPreferences(formData);
-    setLoading(true);
+    console.log('Form submitted with data:', formData);
+    setReviewPreferences(formData);
+    setCurrentStep('review');
   };
 
-  // Handle timeline data from the server
   const handleTimelineData = (data) => {
     setTimelineData(data);
   };
 
-  // Mock data for development
-  useEffect(() => {
-    if (process.env.NODE_ENV === 'development' && preferences) {
-      // Simulate API response with mock data
-      setTimeout(() => {
-        const mockNeighborhoods = [
-          {
-            id: 1,
-            name: 'Koramangala',
-            city: 'Bangalore',
-            state: 'Karnataka',
-            averageRent: 35000,
-            safetyScore: 8,
-            walkabilityScore: 7,
-            image: 'https://via.placeholder.com/300x200',
-            description: 'Popular tech hub with vibrant nightlife, restaurants, and cafes. Home to many startups and young professionals.',
-            amenities: ['Restaurants', 'Cafes', 'Pubs', 'Parks', 'Gyms'],
-            latitude: 12.9352,
-            longitude: 77.6245
-          },
-          {
-            id: 2,
-            name: 'Indiranagar',
-            city: 'Bangalore',
-            state: 'Karnataka',
-            averageRent: 40000,
-            safetyScore: 7,
-            walkabilityScore: 8,
-            image: 'https://via.placeholder.com/300x200',
-            description: 'Upscale residential area with trendy boutiques, microbreweries, and a lively music scene.',
-            amenities: ['Shopping', 'Restaurants', 'Pubs', 'Metro Station'],
-            latitude: 12.9784,
-            longitude: 77.6408
-          },
-          {
-            id: 3,
-            name: 'HSR Layout',
-            city: 'Bangalore',
-            state: 'Karnataka',
-            averageRent: 30000,
-            safetyScore: 8,
-            walkabilityScore: 6,
-            image: 'https://via.placeholder.com/300x200',
-            description: 'Well-planned residential area with good connectivity, parks, and a growing tech presence.',
-            amenities: ['Parks', 'Cafes', 'Supermarkets', 'Gyms'],
-            latitude: 12.9116,
-            longitude: 77.6741
-          },
-          {
-            id: 4,
-            name: 'Whitefield',
-            city: 'Bangalore',
-            state: 'Karnataka',
-            averageRent: 25000,
-            safetyScore: 7,
-            walkabilityScore: 5,
-            image: 'https://via.placeholder.com/300x200',
-            description: 'Major IT hub with tech parks, shopping malls, and residential communities.',
-            amenities: ['IT Parks', 'Malls', 'International Schools', 'Apartments'],
-            latitude: 12.9698,
-            longitude: 77.7499
-          },
-          {
-            id: 5,
-            name: 'Jayanagar',
-            city: 'Bangalore',
-            state: 'Karnataka',
-            averageRent: 28000,
-            safetyScore: 9,
-            walkabilityScore: 8,
-            image: 'https://via.placeholder.com/300x200',
-            description: 'Traditional residential area with excellent markets, parks, and cultural venues.',
-            amenities: ['Shopping Complex', 'Parks', 'Temples', 'Restaurants'],
-            latitude: 12.9299,
-            longitude: 77.5933
-          }
-        ];
-        
-        setNeighborhoods(mockNeighborhoods);
-        
-        // Format data for map
-        const locations = mockNeighborhoods.map(neighborhood => ({
-          name: neighborhood.name,
-          description: `${neighborhood.name} - Avg. Rent: ₹${neighborhood.averageRent}/mo`,
-          address: `${neighborhood.name}, ${neighborhood.city}, ${neighborhood.state}`,
-          latitude: neighborhood.latitude,
-          longitude: neighborhood.longitude
-        }));
-        
-        setMapLocations(locations);
-        setLoading(false);
-      }, 1500);
+  const handleReviewBack = () => {
+    setCurrentStep('form');
+  };
+
+  const handleReviewConfirm = () => {
+    setPreferences(reviewPreferences);
+    fetchNeighborhoods();
+  };
+
+  // Render the current step
+  const renderCurrentStep = () => {
+    switch (currentStep) {
+      case 'form':
+        return (
+          <PreferenceForm 
+            onSubmit={handlePreferenceSubmit} 
+            onTimelineData={handleTimelineData} 
+          />
+        );
+      case 'review':
+        return (
+          <ReviewSelection 
+            preferences={reviewPreferences} 
+            onConfirm={handleReviewConfirm} 
+            onBack={handleReviewBack} 
+          />
+        );
+      case 'results':
+        return (
+          <div className="results-container">
+            {loading ? (
+              <div className="loading-container">
+                <div className="loader"></div>
+                <p>Finding the perfect neighborhoods for you...</p>
+              </div>
+            ) : error ? (
+              <div className="error-container">
+                <h3>Error</h3>
+                <p>{error}</p>
+                <button onClick={() => setCurrentStep('review')}>Go Back</button>
+              </div>
+            ) : (
+              <>
+                <div className="map-container">
+                  <MapView locations={mapLocations} />
+                </div>
+                <div className="neighborhoods-list">
+                  <h2>Recommended Neighborhoods</h2>
+                  {neighborhoods.length > 0 ? (
+                    neighborhoods.map((neighborhood, index) => (
+                      <NeighborhoodCard 
+                        key={index} 
+                        neighborhood={neighborhood} 
+                        userCategory={preferences.userCategory}
+                      />
+                    ))
+                  ) : (
+                    <p>No neighborhoods found matching your criteria.</p>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        );
+      default:
+        return <div>Unknown step</div>;
     }
-  }, [preferences]);
+  };
 
   return (
-    <div className="neighborhood-finder-page">
-      <div className="page-header">
-        <h1>Find Your Perfect Neighborhood</h1>
-        <p>Tell us your preferences and we'll find neighborhoods that match your needs.</p>
-      </div>
-
-      {!preferences ? (
-        <div className="preferences-section">
-          <PreferenceForm onSubmit={handlePreferenceSubmit} onTimelineData={handleTimelineData} />
-        </div>
-      ) : (
-        <div className="results-section">
-          {loading ? (
-            <div className="loading-indicator">
-              <p>Finding neighborhoods that match your preferences...</p>
-              <div className="spinner"></div>
-            </div>
-          ) : error ? (
-            <div className="error-message">
-              <p>{error}</p>
-              <button onClick={() => setPreferences(null)}>Try Again</button>
-            </div>
-          ) : (
-            <>
-              <div className="results-header">
-                <h2>Recommended Neighborhoods</h2>
-                <div className="results-info">
-                  <div className="result-badges">
-                    <span className="category-badge" style={{ 
-                      backgroundColor: getCategoryColor(preferences.userCategory),
-                      color: 'white'
-                    }}>
-                      {getCategoryName(preferences.userCategory)}
-                    </span>
-                    <span className="travel-badge" style={{
-                      backgroundColor: getTravelModeColor(preferences.commute.travelMode),
-                      color: 'white'
-                    }}>
-                      {getTravelModeIcon(preferences.commute.travelMode)} {preferences.commute.maxCommuteDistance} km
-                    </span>
-                  </div>
-                  <button onClick={() => setPreferences(null)} className="edit-preferences-btn">
-                    Edit Preferences
-                  </button>
-                </div>
-              </div>
-              
-              <div className="map-section">
-                <MapView locations={mapLocations} />
-              </div>
-              
-              <div className="neighborhoods-grid">
-                {neighborhoods.length > 0 ? (
-                  neighborhoods.map(neighborhood => (
-                    <NeighborhoodCard key={neighborhood.id} neighborhood={neighborhood} />
-                  ))
-                ) : (
-                  <div className="no-results">
-                    <p>No neighborhoods found matching your criteria. Try adjusting your preferences.</p>
-                    <button onClick={() => setPreferences(null)}>Adjust Preferences</button>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </div>
-      )}
+    <div className="neighborhood-finder">
+      {renderCurrentStep()}
     </div>
   );
 };

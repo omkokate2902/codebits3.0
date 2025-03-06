@@ -1,10 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { API } from "../utils/api";
+import "../styles/pages/Profile.css";
 
 const Profile = ({ user, setUser }) => {
   const navigate = useNavigate();
   const [file, setFile] = useState(null);
   const [uploadMessage, setUploadMessage] = useState("");
+  const fileInputRef = React.useRef(null);
 
   useEffect(() => {
     if (!user) {
@@ -39,25 +42,26 @@ const Profile = ({ user, setUser }) => {
       return;
     }
 
+    console.log("Uploading file:", file.name, "Type:", file.type, "Size:", file.size);
+    
     const formData = new FormData();
     formData.append("file", file);
+    
+    // Log FormData contents (for debugging)
+    console.log("FormData entries:");
+    for (let pair of formData.entries()) {
+      console.log(pair[0], pair[1]);
+    }
 
     try {
-      const response = await fetch("http://127.0.0.1:3000/api/upload", {
-        method: "POST",
-        body: formData,
-        credentials: "include", // ✅ Ensures session authentication is included
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "File upload failed.");
-      }
-
-      setUploadMessage(data.message || "File uploaded successfully!");
+      const data = await API.user.uploadFile(formData);
+      console.log("Upload response:", data);
+      setUploadMessage("File uploaded successfully!");
+      setFile(null);
+      fileInputRef.current.value = "";
     } catch (error) {
-      setUploadMessage(error.message);
       console.error("Upload error:", error);
+      setUploadMessage(error.message || "File upload failed.");
     }
   };
 
@@ -71,8 +75,13 @@ const Profile = ({ user, setUser }) => {
 
           {/* File Upload */}
           <div>
-            <h3>Upload a TXT File</h3>
-            <input type="file" accept=".txt" onChange={handleFileChange} />
+            <h3>Upload a File</h3>
+            <input 
+              type="file" 
+              accept=".txt,.json" 
+              onChange={handleFileChange} 
+              ref={fileInputRef} 
+            />
             <button onClick={handleFileUpload}>Upload</button>
             {uploadMessage && <p>{uploadMessage}</p>}
           </div>
