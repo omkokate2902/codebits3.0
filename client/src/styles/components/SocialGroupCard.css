@@ -2,8 +2,8 @@
   display: flex;
   flex-direction: column;
   background-color: white;
-  border-radius: var(--border-radius);
-  box-shadow: var(--box-shadow);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   overflow: hidden;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
   height: 100%;
@@ -40,11 +40,11 @@
 .group-content h3 {
   font-size: 1.3rem;
   margin-bottom: 0.3rem;
-  color: var(--primary-color);
+  color: #4285f4;
 }
 
 .group-type {
-  color: var(--accent-color);
+  color: #34a853;
   font-size: 0.9rem;
   font-weight: 500;
   margin-bottom: 0.5rem;
@@ -53,7 +53,7 @@
 .group-description {
   margin-bottom: 1.5rem;
   line-height: 1.6;
-  color: var(--text-color);
+  color: #555;
   font-size: 0.95rem;
 }
 
@@ -63,8 +63,8 @@
   gap: 1rem;
   margin-bottom: 1.5rem;
   padding: 1rem;
-  background-color: var(--light-gray);
-  border-radius: var(--border-radius);
+  background-color: #f8f9fa;
+  border-radius: 8px;
 }
 
 .detail {
@@ -76,14 +76,14 @@
 
 .detail-label {
   font-size: 0.8rem;
-  color: var(--dark-gray);
+  color: #666;
   margin-bottom: 0.3rem;
 }
 
 .detail-value {
   font-size: 1rem;
   font-weight: 600;
-  color: var(--primary-color);
+  color: #4285f4;
 }
 
 .group-interests {
@@ -94,7 +94,7 @@
 .group-interests h4 {
   font-size: 1.1rem;
   margin-bottom: 0.8rem;
-  color: var(--text-color);
+  color: #333;
 }
 
 .interest-tags {
@@ -104,8 +104,8 @@
 }
 
 .interest-tag {
-  background-color: rgba(76, 185, 99, 0.1);
-  color: var(--accent-color);
+  background-color: rgba(52, 168, 83, 0.1);
+  color: #34a853;
   padding: 0.3rem 0.8rem;
   border-radius: 20px;
   font-size: 0.9rem;
@@ -121,31 +121,32 @@
   flex: 1;
   text-align: center;
   padding: 0.7rem 0;
-  border-radius: var(--border-radius);
+  border-radius: 30px;
   font-weight: 500;
   font-size: 0.9rem;
   transition: all 0.3s ease;
   cursor: pointer;
+  border: none;
 }
 
 .join-group-btn {
-  background-color: var(--accent-color);
+  background-color: #4285f4;
   color: white;
   text-decoration: none;
 }
 
 .join-group-btn:hover {
-  background-color: #3da850;
+  background-color: #3b78e7;
 }
 
 .save-group-btn {
   background-color: white;
-  color: var(--primary-color);
-  border: 1px solid var(--primary-color);
+  color: #4285f4;
+  border: 1px solid #4285f4;
 }
 
 .save-group-btn:hover {
-  background-color: rgba(74, 111, 165, 0.1);
+  background-color: rgba(66, 133, 244, 0.1);
 }
 
 /* Responsive styles */

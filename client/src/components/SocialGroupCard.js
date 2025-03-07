@@ -4,30 +4,27 @@ import '../styles/components/SocialGroupCard.css';
 const SocialGroupCard = ({ group }) => {
   const { 
     name, 
-    type, 
     description, 
-    memberCount, 
-    image, 
+    members,
     location,
-    meetupFrequency,
+    distance,
     interests,
-    link
+    image
   } = group;
 
   return (
     <div className="social-group-card">
       <div className="group-image">
-        <img src={image} alt={name} />
+        <img src={image || 'https://via.placeholder.com/300x200'} alt={name} />
       </div>
       <div className="group-content">
         <h3>{name}</h3>
-        <p className="group-type">{type}</p>
         <p className="group-description">{description}</p>
         
         <div className="group-details">
           <div className="detail">
             <span className="detail-label">Members:</span>
-            <span className="detail-value">{memberCount}</span>
+            <span className="detail-value">{members}</span>
           </div>
           {location && (
             <div className="detail">
@@ -35,10 +32,10 @@ const SocialGroupCard = ({ group }) => {
               <span className="detail-value">{location}</span>
             </div>
           )}
-          {meetupFrequency && (
+          {distance && (
             <div className="detail">
-              <span className="detail-label">Meets:</span>
-              <span className="detail-value">{meetupFrequency}</span>
+              <span className="detail-label">Distance:</span>
+              <span className="detail-value">{distance}</span>
             </div>
           )}
         </div>
@@ -55,16 +52,7 @@ const SocialGroupCard = ({ group }) => {
         )}
         
         <div className="group-actions">
-          {link && (
-            <a 
-              href={link} 
-              target="_blank" 
-              rel="noopener noreferrer" 
-              className="join-group-btn"
-            >
-              Join Group
-            </a>
-          )}
+          <button className="join-group-btn">Join Group</button>
           <button className="save-group-btn">Save</button>
         </div>
       </div>

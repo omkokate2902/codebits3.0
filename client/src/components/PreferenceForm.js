@@ -1,9 +1,10 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { API } from '../utils/api';
 import '../styles/components/PreferenceForm.css';
 import { savePreferences, getHousingRecommendations } from '../services/api';
+import { analyzeTimelineData } from '../utils/geminiApi';
+import * as userStorage from '../utils/userStorage';
 
-const PreferenceForm = ({ onSubmit, onTimelineData }) => {
+const PreferenceForm = ({ onSubmit, onTimelineData, userId }) => {
   const fileInputRef = useRef(null);
   const mapRef = useRef(null);
   const [uploadStatus, setUploadStatus] = useState('');
@@ -352,13 +353,13 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     if (file) {
-      if (file.name.endsWith('.json')) {
+      if (file.name.endsWith('.json') || file.name.endsWith('.txt')) {
         setSelectedFile(file);
         setUploadStatus('ready');
       } else {
         setUploadStatus('error');
         setSelectedFile(null);
-        alert('Please select a valid JSON file from Google Takeout');
+        alert('Please select a valid JSON or TXT file from Google Takeout');
       }
     }
   };
@@ -372,11 +373,8 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
     setUploadStatus('uploading');
     setUploadProgress(0);
 
-    const formData = new FormData();
-    formData.append('file', selectedFile);
-
     try {
-      console.log('Uploading file:', selectedFile.name);
+      console.log('Processing file:', selectedFile.name);
       
       // Simulate progress for better UX
       const progressInterval = setInterval(() => {
@@ -389,37 +387,241 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
         });
       }, 500);
       
-      // Use our API utility to upload the file
-      const response = await API.user.uploadFile(formData);
+      // Read the file content
+      const fileContent = await readFileAsText(selectedFile);
+      console.log('File content loaded, length:', fileContent.length);
       
+      // Check if the file content is valid JSON (only for JSON files)
+      if (selectedFile.name.endsWith('.json')) {
+        try {
+          JSON.parse(fileContent);
+          console.log('File content is valid JSON');
+        } catch (jsonError) {
+          console.error('File content is not valid JSON:', jsonError);
+          clearInterval(progressInterval);
+          setUploadStatus('error');
+          alert('The selected file is not a valid JSON file. Please select a valid timeline.json file.');
+          return;
+        }
+      }
+      
+      // Update progress
       clearInterval(progressInterval);
+      setUploadProgress(95);
+      setUploadStatus('processing');
+      
+      // Analyze the timeline data using Gemini API
+      console.log('Sending data to Gemini API for analysis...');
+      const analysisResult = await analyzeTimelineData(fileContent);
+      console.log('Timeline analysis result:', analysisResult);
+      
+      // Save analysis results to local storage if userId is available
+      if (userId) {
+        userStorage.saveUserAnalysis(userId, analysisResult);
+        console.log('Analysis results saved for user:', userId);
+        
+        // Determine and save user persona based on personality traits
+        if (analysisResult && analysisResult.personality_traits && analysisResult.personality_traits.length > 0) {
+          // Simple algorithm to determine persona based on traits
+          let persona = 'balanced';
+          
+          const traits = analysisResult.personality_traits.map(trait => trait.toLowerCase());
+          
+          if (traits.some(trait => 
+            trait.includes('luxury') || 
+            trait.includes('premium') || 
+            trait.includes('high-end'))) {
+            persona = 'luxury';
+          } else if (traits.some(trait => 
+            trait.includes('active') || 
+            trait.includes('outdoor') || 
+            trait.includes('adventurous'))) {
+            persona = 'active';
+          } else if (traits.some(trait => 
+            trait.includes('social') || 
+            trait.includes('outgoing') || 
+            trait.includes('community'))) {
+            persona = 'social';
+          } else if (traits.some(trait => 
+            trait.includes('budget') || 
+            trait.includes('thrifty') || 
+            trait.includes('economical'))) {
+            persona = 'budget';
+          } else if (traits.some(trait => 
+            trait.includes('family') || 
+            trait.includes('children') || 
+            trait.includes('kid'))) {
+            persona = 'family';
+          }
+          
+          // Save the persona
+          userStorage.saveUserPersona(userId, persona);
+          console.log('User persona determined and saved:', persona);
+        }
+      }
+      
+      // Complete the progress
       setUploadProgress(100);
       setUploadStatus('success');
-      console.log('Upload successful:', response);
       
-      // If the server returns timeline data, pass it to the parent component
-      if (response.data && onTimelineData) {
-        onTimelineData(response.data);
+      // Show a more detailed success message
+      alert(`Analysis complete! We've identified ${analysisResult.personality_traits.length} personality traits and ${analysisResult.lifestyle_indicators.length} lifestyle indicators.`);
+      
+      // Pass the analysis result to the parent component
+      if (onTimelineData) {
+        onTimelineData(analysisResult);
       }
       
-      // If the server suggests a user category, update it
-      if (response.suggestedCategory) {
-        setPreferences(prev => ({
-          ...prev,
-          userCategory: response.suggestedCategory
-        }));
+      // Update user category based on analysis if possible
+      if (analysisResult && analysisResult.personality_traits) {
+        // Try to determine user category from personality traits
+        const traits = analysisResult.personality_traits.map(trait => trait.toLowerCase());
+        
+        if (traits.some(trait => trait.includes('luxury') || trait.includes('premium'))) {
+          setPreferences(prev => ({ ...prev, userCategory: 'luxury' }));
+        } else if (traits.some(trait => trait.includes('comfort') || trait.includes('quality'))) {
+          setPreferences(prev => ({ ...prev, userCategory: 'comfort' }));
+        } else if (traits.some(trait => trait.includes('budget') || trait.includes('thrifty'))) {
+          setPreferences(prev => ({ ...prev, userCategory: 'budget' }));
+        }
       }
+      
+      // Update lifestyle preferences based on analysis
+      if (analysisResult && analysisResult.lifestyle_indicators) {
+        const lifestyleMap = {
+          'active': 'activeLifestyle',
+          'outdoor': 'outdoorActivities',
+          'shopping': 'shopping',
+          'dining': 'casualDining',
+          'restaurant': 'casualDining',
+          'fine dining': 'fineDining',
+          'nightlife': 'nightlife',
+          'cultural': 'cultural',
+          'arts': 'artsAndMusic',
+          'music': 'artsAndMusic',
+          'family': 'familyFriendly',
+          'quiet': 'quiet',
+          'community': 'community',
+          'social': 'socialGatherings'
+        };
+        
+        // Create a new array of lifestyle preferences
+        const newLifestylePrefs = [...preferences.lifestylePreferences];
+        
+        // Add lifestyle preferences based on indicators
+        analysisResult.lifestyle_indicators.forEach(indicator => {
+          // Check each keyword in the lifestyleMap
+          Object.entries(lifestyleMap).forEach(([keyword, prefKey]) => {
+            if (indicator.toLowerCase().includes(keyword) && !newLifestylePrefs.includes(prefKey)) {
+              newLifestylePrefs.push(prefKey);
+            }
+          });
+        });
+        
+        // Update preferences if we found any matches
+        if (newLifestylePrefs.length > preferences.lifestylePreferences.length) {
+          setPreferences(prev => ({
+            ...prev,
+            lifestylePreferences: newLifestylePrefs
+          }));
+        }
+      }
+      
+      // Add frequent locations to priority list
+      if (analysisResult && analysisResult.frequent_locations && analysisResult.frequent_locations.length > 0) {
+        // Map location names to must-have items
+        const locationToMustHaveMap = {
+          'Home': 'parking',
+          'Office': 'publicTransport',
+          'Grocery Store': 'groceryStores',
+          'Restaurant': 'restaurants',
+          'Cafe': 'cafes',
+          'Coffee Shop': 'cafes',
+          'Gym': 'gym',
+          'Park': 'parks',
+          'School': 'schools'
+        };
+        
+        // Get current priority items
+        const currentPriorityItems = [...priorityItems];
+        const currentPriorityNames = currentPriorityItems.map(item => item.name);
+        
+        // New items to add
+        const newItems = [];
+        
+        // Process each frequent location
+        analysisResult.frequent_locations.forEach(location => {
+          // Find matching must-have item
+          let mustHaveItem = null;
+          
+          // Direct mapping
+          if (locationToMustHaveMap[location]) {
+            mustHaveItem = locationToMustHaveMap[location];
+          } else {
+            // Try partial matching
+            for (const [locKey, mustHaveKey] of Object.entries(locationToMustHaveMap)) {
+              if (location.toLowerCase().includes(locKey.toLowerCase())) {
+                mustHaveItem = mustHaveKey;
+                break;
+              }
+            }
+          }
+          
+          // If we found a matching must-have and it's not already in the list
+          if (mustHaveItem && !currentPriorityNames.includes(mustHaveItem) && !newItems.includes(mustHaveItem)) {
+            newItems.push(mustHaveItem);
+          }
+        });
+        
+        // Add new items to priorities
+        newItems.forEach(item => {
+          addToPriorities(item);
+        });
+        
+        // If we added items, show a message
+        if (newItems.length > 0) {
+          console.log(`Added ${newItems.length} frequent locations to priorities: ${newItems.join(', ')}`);
+        }
+      }
+      
     } catch (error) {
-      console.error('Upload failed:', error);
+      console.error('Analysis failed:', error);
       setUploadStatus('error');
       
       // Show a more specific error message
       if (error.message) {
-        alert(`Upload failed: ${error.message}`);
+        alert(`Analysis failed: ${error.message}`);
       } else {
-        alert('Upload failed. Please try again.');
+        alert('Analysis failed. Please try again.');
       }
     }
+  };
+  
+  // Helper function to read file as text
+  const readFileAsText = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const content = event.target.result;
+        
+        // If it's a JSON file, try to parse it to validate
+        if (file.name.endsWith('.json')) {
+          try {
+            // Just validate, but return the original text
+            JSON.parse(content);
+            resolve(content);
+          } catch (error) {
+            console.error('Invalid JSON file:', error);
+            reject(new Error('Invalid JSON file. Please select a valid timeline.json file.'));
+          }
+        } else {
+          // For TXT files, just return the content
+          resolve(content);
+        }
+      };
+      reader.onerror = (error) => reject(error);
+      reader.readAsText(file);
+    });
   };
 
   const handleSubmit = async (e) => {
@@ -451,9 +653,15 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
       
       console.log('Submitting preferences:', finalPreferences);
       
+      // Save preferences to local storage if userId is available
+      if (userId) {
+        userStorage.saveUserPreferences(userId, finalPreferences);
+        console.log('Preferences saved locally for user:', userId);
+      }
+      
       // Save preferences to backend
       const saveResponse = await savePreferences(finalPreferences);
-      console.log('Preferences saved:', saveResponse);
+      console.log('Preferences saved to backend:', saveResponse);
       
       // Get housing recommendations
       const recommendationsResponse = await getHousingRecommendations(finalPreferences);
@@ -719,315 +927,508 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
     }));
   };
 
-  return (
-    <form className="preference-form" onSubmit={handleSubmit}>
-      <div className="form-section upload-section">
-        <h3>Upload Your Google Timeline Data</h3>
-        <p className="section-description">
-          Upload your timeline.json file from Google Takeout to get personalized recommendations based on your movement patterns.
-        </p>
+  // Load user data from local storage when component mounts or userId changes
+  useEffect(() => {
+    if (userId) {
+      loadUserData(userId);
+    }
+  }, [userId]);
+
+  // Function to load user data from local storage
+  const loadUserData = (uid) => {
+    try {
+      // Get user preferences from storage
+      const savedPreferences = userStorage.getUserPreferences(uid);
+      if (savedPreferences) {
+        console.log('Loaded saved preferences for user:', uid);
+        setPreferences(savedPreferences);
         
-        <div className="file-upload-container">
-          <div className="file-input-wrapper">
-            <input
-              type="file"
-              ref={fileInputRef}
-              onChange={handleFileChange}
-              accept=".json"
-              className="file-input"
-              id="timeline-upload"
-            />
-            <label htmlFor="timeline-upload" className="file-label">
-              {selectedFile ? selectedFile.name : 'Choose timeline.json file'}
-            </label>
+        // If there are prioritized must-haves, load them
+        if (savedPreferences.prioritizedMustHaves) {
+          const savedPriorityItems = savedPreferences.prioritizedMustHaves.map(item => ({
+            name: item.name,
+            priority: item.priority
+          }));
+          setPriorityItems(savedPriorityItems);
+          setPrioritizedMustHaves(savedPriorityItems.map(item => item.name));
+        }
+      }
+      
+      // Get user analysis results from storage
+      const savedAnalysis = userStorage.getUserAnalysis(uid);
+      if (savedAnalysis && onTimelineData) {
+        console.log('Loaded saved analysis for user:', uid);
+        onTimelineData(savedAnalysis);
+      }
+    } catch (error) {
+      console.error('Error loading user data:', error);
+    }
+  };
+
+  // Add a function to render saved user data
+  const renderSavedUserData = () => {
+    if (!userId) return null;
+    
+    const savedAnalysis = userStorage.getUserAnalysis(userId);
+    const savedPersona = userStorage.getUserPersona(userId);
+    
+    if (!savedAnalysis && !savedPersona) return null;
+    
+    // Define persona details
+    const personaDetails = {
+      luxury: {
+        icon: '💎',
+        color: '#9b59b6',
+        description: 'You value premium experiences and high-quality amenities in your living environment.',
+        traits: ['Appreciates quality', 'Enjoys premium services', 'Values aesthetics']
+      },
+      active: {
+        icon: '🏃',
+        color: '#2ecc71',
+        description: 'You lead an energetic lifestyle and prefer neighborhoods with outdoor activities and fitness options.',
+        traits: ['Energetic', 'Outdoor enthusiast', 'Health-conscious']
+      },
+      social: {
+        icon: '🎭',
+        color: '#f39c12',
+        description: 'You thrive in vibrant communities with plenty of social gatherings and cultural events.',
+        traits: ['Outgoing', 'Community-oriented', 'Enjoys events']
+      },
+      budget: {
+        icon: '💰',
+        color: '#3498db',
+        description: 'You are practical and value-conscious, prioritizing affordability and essential amenities.',
+        traits: ['Practical', 'Value-conscious', 'Resourceful']
+      },
+      family: {
+        icon: '👨‍👩‍👧‍👦',
+        color: '#e74c3c',
+        description: 'You prioritize family-friendly environments with good schools and safe neighborhoods.',
+        traits: ['Family-oriented', 'Safety-conscious', 'Community-minded']
+      },
+      balanced: {
+        icon: '⚖️',
+        color: '#34495e',
+        description: 'You appreciate a well-rounded lifestyle with a mix of amenities and experiences.',
+        traits: ['Adaptable', 'Well-rounded', 'Balanced priorities']
+      }
+    };
+    
+    // Get persona info
+    const persona = savedPersona || 'balanced';
+    const personaInfo = personaDetails[persona];
+    
+    return (
+      <div className="saved-data-section">
+        <h3>Your Saved Profile</h3>
+        
+        {savedPersona && (
+          <div className="saved-persona">
+            <div className="persona-card" style={{ borderColor: personaInfo.color }}>
+              <div className="persona-icon" style={{ backgroundColor: personaInfo.color }}>
+                {personaInfo.icon}
+              </div>
+              <div className="persona-content">
+                <h4>You are a <span style={{ color: personaInfo.color }}>
+                  {persona.charAt(0).toUpperCase() + persona.slice(1)}
+                </span> Roommate</h4>
+                <p className="persona-description">{personaInfo.description}</p>
+                <div className="persona-traits">
+                  {personaInfo.traits.map((trait, index) => (
+                    <span key={index} className="persona-trait" style={{ backgroundColor: `${personaInfo.color}20`, color: personaInfo.color }}>
+                      {trait}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
+        )}
+        
+        <div className="profile-data-grid">
+          {savedAnalysis && savedAnalysis.personality_traits && savedAnalysis.personality_traits.length > 0 && (
+            <div className="saved-traits">
+              <h4>Your Personality Traits</h4>
+              <div className="traits-list">
+                {savedAnalysis.personality_traits.slice(0, 5).map((trait, index) => (
+                  <span key={index} className="trait-badge">
+                    {trait}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
           
+          {savedAnalysis && savedAnalysis.lifestyle_indicators && savedAnalysis.lifestyle_indicators.length > 0 && (
+            <div className="saved-lifestyle">
+              <h4>Your Lifestyle Indicators</h4>
+              <div className="traits-list">
+                {savedAnalysis.lifestyle_indicators.slice(0, 5).map((indicator, index) => (
+                  <span key={index} className="trait-badge lifestyle-badge">
+                    {indicator}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+        
+        {savedAnalysis && savedAnalysis.frequent_locations && savedAnalysis.frequent_locations.length > 0 && (
+          <div className="saved-locations">
+            <h4>Your Frequent Locations</h4>
+            <div className="locations-list">
+              {savedAnalysis.frequent_locations.slice(0, 5).map((location, index) => (
+                <div key={index} className="location-item">
+                  <span className="location-icon">📍</span>
+                  <span className="location-name">{location}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+        
+        <div className="saved-data-actions">
           <button 
-            type="button" 
-            className={`upload-btn ${!selectedFile ? 'disabled' : ''}`}
-            onClick={handleFileUpload}
-            disabled={!selectedFile || uploadStatus === 'uploading'}
+            className="clear-data-btn"
+            onClick={() => {
+              if (window.confirm('Are you sure you want to clear your saved data? This will reset your profile and preferences.')) {
+                userStorage.clearUserData(userId);
+                window.location.reload();
+              }
+            }}
           >
-            {uploadStatus === 'uploading' ? 'Uploading...' : 'Upload File'}
+            Reset Profile Data
           </button>
         </div>
-        
-        {uploadStatus === 'uploading' && (
-          <div className="upload-progress">
-            <div className="progress-bar">
-              <div 
-                className="progress-fill" 
-                style={{ width: `${uploadProgress}%` }}
-              ></div>
-            </div>
-            <span className="progress-text">
-              {uploadProgress < 100 ? `${uploadProgress}% Uploaded` : 'Processing file...'}
-            </span>
-          </div>
-        )}
-        
-        {uploadStatus === 'success' && (
-          <div className="upload-success">
-            <span className="success-icon">✓</span>
-            <span>File uploaded successfully! We'll analyze your movement patterns.</span>
-          </div>
-        )}
-        
-        {uploadStatus === 'error' && (
-          <div className="upload-error">
-            <span className="error-icon">✗</span>
-            <span>Error uploading file. Please try again.</span>
-          </div>
-        )}
       </div>
+    );
+  };
 
-      <div className="form-section">
-        <h3>Select Your Spending Category</h3>
-        <p className="section-description">
-          Choose the category that best describes your monthly spending habits in India.
-        </p>
-        
-        <div className="category-selector">
-          {userCategories.map((category) => (
-            <div 
-              key={category.id}
-              className={`category-card ${preferences.userCategory === category.id ? 'selected' : ''}`}
-              onClick={() => handleCategorySelect(category.id)}
-              style={{ borderColor: preferences.userCategory === category.id ? category.color : 'transparent' }}
+  return (
+    <div className="preference-form-container">
+      <h2 style={{textAlign: 'center'}}>Find Your Perfect Neighborhood</h2>
+      
+      {/* Display saved user data if available */}
+      
+      <form className="preference-form" onSubmit={handleSubmit}>
+        <div className="form-section upload-section">
+          <h3>Upload Your Google Timeline Data</h3>
+          <p className="section-description">
+            Upload your timeline.json file from Google Takeout to get personalized recommendations based on your movement patterns.
+          </p>
+
+          {renderSavedUserData()}
+
+          
+          <div className="file-upload-container">
+            <div className="file-input-wrapper">
+              <input
+                type="file"
+                ref={fileInputRef}
+                onChange={handleFileChange}
+                accept=".json,.txt"
+                className="file-input"
+                id="timeline-upload"
+              />
+              <label htmlFor="timeline-upload" className="file-label">
+                {selectedFile ? selectedFile.name : 'Choose timeline.json file'}
+              </label>
+            </div>
+            
+            <button 
+              type="button" 
+              className={`upload-btn ${!selectedFile ? 'disabled' : ''}`}
+              onClick={handleFileUpload}
+              disabled={!selectedFile || uploadStatus === 'uploading' || uploadStatus === 'processing'}
             >
-              <div className="category-icon" style={{ backgroundColor: category.color }}>
-                {category.icon}
+              {uploadStatus === 'uploading' ? 'Uploading...' : 
+               uploadStatus === 'processing' ? 'Analyzing...' : 'Upload File'}
+            </button>
+          </div>
+          
+          {(uploadStatus === 'uploading' || uploadStatus === 'processing') && (
+            <div className="upload-progress">
+              <div className="progress-bar">
+                <div 
+                  className="progress-fill" 
+                  style={{ width: `${uploadProgress}%` }}
+                ></div>
               </div>
-              <h4 className="category-name">{category.name}</h4>
-              <p className="category-description">{category.description}</p>
-              <div className="category-price">{category.priceRange}</div>
+              <span className="progress-text">
+                {uploadStatus === 'uploading' ? 
+                  (uploadProgress < 100 ? `${uploadProgress}% Uploaded` : 'Processing file...') :
+                  'Analyzing with AI... This may take a moment.'}
+              </span>
             </div>
-          ))}
+          )}
+          
+          {uploadStatus === 'success' && (
+            <div className="upload-success">
+              <span className="success-icon">✓</span>
+              <span>
+                File analyzed successfully! We've identified personality traits and lifestyle preferences.
+                <br />
+                <strong>Your preferences have been updated based on your movement patterns.</strong>
+              </span>
+            </div>
+          )}
+          
+          {uploadStatus === 'error' && (
+            <div className="upload-error">
+              <span className="error-icon">✗</span>
+              <span>Error analyzing file. Please try again.</span>
+            </div>
+          )}
         </div>
-      </div>
 
-      <div className="form-section commute-section">
-        <h3>Commute Preferences</h3>
-        <p className="section-description">
-          Enter your work/school address and select how far you're willing to travel.
-        </p>
-        
-        <div className="input-group">
-          <label>Work/School Address</label>
-          <input
-            type="text"
-            value={preferences.commute.workAddress}
-            onChange={(e) => handleInputChange('commute', 'workAddress', e.target.value)}
-            placeholder="Enter your work/school address"
-          />
-        </div>
-        
-        <div className="travel-mode-selector">
-          <label>How will you travel?</label>
-          <div className="travel-modes">
-            {travelModes.map((mode) => (
-              <div
-                key={mode.id}
-                className={`travel-mode ${preferences.commute.travelMode === mode.id ? 'active' : ''} ${preferences.commute.travelModes[mode.id].enabled ? 'enabled' : ''}`}
-                onClick={() => handleTravelModeSelect(mode.id)}
-                style={{ 
-                  borderColor: preferences.commute.travelModes[mode.id].enabled 
-                    ? getTravelModeColor(mode.id) 
-                    : 'transparent' 
-                }}
+        <div className="form-section">
+          <h3>Select Your Spending Category</h3>
+          <p className="section-description">
+            Choose the category that best describes your monthly spending habits in India.
+          </p>
+          
+          <div className="category-selector">
+            {userCategories.map((category) => (
+              <div 
+                key={category.id}
+                className={`category-card ${preferences.userCategory === category.id ? 'selected' : ''}`}
+                onClick={() => handleCategorySelect(category.id)}
+                style={{ borderColor: preferences.userCategory === category.id ? category.color : 'transparent' }}
               >
-                <div className="travel-mode-icon" style={{ backgroundColor: getTravelModeColor(mode.id) }}>
-                  {mode.icon}
+                <div className="category-icon" style={{ backgroundColor: category.color }}>
+                  {category.icon}
                 </div>
-                <div className="travel-mode-label">{mode.label}</div>
-                {preferences.commute.travelModes[mode.id].enabled && (
-                  <div className="travel-mode-distance">
-                    {preferences.commute.travelModes[mode.id].distance} km
-                  </div>
-                )}
+                <h4 className="category-name">{category.name}</h4>
+                <p className="category-description">{category.description}</p>
+                <div className="category-price">{category.priceRange}</div>
               </div>
             ))}
           </div>
         </div>
-        
-        <div className="distance-slider-container">
-          <label>
-            Maximum Travel Distance: <span className="distance-value">{preferences.commute.travelModes[preferences.commute.travelMode].distance} km</span>
-          </label>
-          <input
-            type="range"
-            min="1"
-            max={currentTravelMode.maxDistance}
-            step="1"
-            value={preferences.commute.travelModes[preferences.commute.travelMode].distance}
-            onChange={(e) => handleInputChange('commute', 'travelModes', {
-              ...preferences.commute.travelModes,
-              [preferences.commute.travelMode]: {
-                ...preferences.commute.travelModes[preferences.commute.travelMode],
-                distance: parseInt(e.target.value)
-              }
-            })}
-            className="distance-slider"
-          />
-          <div className="distance-range">
-            <span>1 km</span>
-            <span>{currentTravelMode.maxDistance} km</span>
-          </div>
-        </div>
-        
-        <div className="commute-map-container">
-          <div ref={mapRef} className="commute-map"></div>
-          {!preferences.commute.workAddress && (
-            <div className="map-overlay">
-              <p>Enter an address above to see your commute range</p>
-            </div>
-          )}
-        </div>
-      </div>
 
-      <div className="form-section">
-        <h2>What is important to you?</h2>
-        <p className="section-description">We use these lifestyle preferences to help you narrow down the best places to visit, so please select at least 3. You can always change these later.</p>
-        
-        <div className="lifestyle-grid">
-          {lifestyleOptions.map((item) => (
-            <div 
-              key={item} 
-              className={`lifestyle-item ${preferences.lifestylePreferences.includes(item) ? 'selected' : ''}`}
-              onClick={() => handleCheckboxChange('lifestylePreferences', item)}
-            >
-              {item.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}
-            </div>
-          ))}
+        <div className="form-section commute-section">
+          <h3>Commute Preferences</h3>
+          <p className="section-description">
+            Enter your work/school address and select how far you're willing to travel.
+          </p>
           
-          {/* Custom lifestyle preferences */}
-          {preferences.customLifestyles.map((item, index) => (
-            <div 
-              key={`custom-${index}`} 
-              className={`lifestyle-item ${item.value ? 'selected' : ''}`}
-              onClick={() => handleCustomLifestyleChange(index)}
-            >
-              {item.name}
-              <button
-                type="button"
-                className="remove-btn"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  removeCustomLifestyle(index);
-                }}
-                aria-label={`Remove ${item.name}`}
-              >
-                ×
-              </button>
-            </div>
-          ))}
-          
-          {/* Add new preference button */}
-          <div className="lifestyle-item add-preference">
+          <div className="input-group">
+            <label>Work/School Address</label>
             <input
               type="text"
-              value={newLifestyle}
-              onChange={(e) => setNewLifestyle(e.target.value)}
-              placeholder="Add a New Preference Here"
-              className="new-preference-input"
-              onKeyPress={(e) => {
-                if (e.key === 'Enter' && newLifestyle.trim()) {
-                  e.preventDefault();
-                  addCustomLifestyle();
-                }
-              }}
+              value={preferences.commute.workAddress}
+              onChange={(e) => handleInputChange('commute', 'workAddress', e.target.value)}
+              placeholder="Enter your work/school address"
             />
-            <button
-              type="button"
-              className="add-btn"
-              onClick={addCustomLifestyle}
-              disabled={!newLifestyle.trim()}
-            >
-              +
-            </button>
+          </div>
+          
+          <div className="travel-mode-selector">
+            <label>How will you travel?</label>
+            <div className="travel-modes">
+              {travelModes.map((mode) => (
+                <div
+                  key={mode.id}
+                  className={`travel-mode ${preferences.commute.travelMode === mode.id ? 'active' : ''} ${preferences.commute.travelModes[mode.id].enabled ? 'enabled' : ''}`}
+                  onClick={() => handleTravelModeSelect(mode.id)}
+                  style={{ 
+                    borderColor: preferences.commute.travelModes[mode.id].enabled 
+                      ? getTravelModeColor(mode.id) 
+                      : 'transparent' 
+                  }}
+                >
+                  <div className="travel-mode-icon" style={{ backgroundColor: getTravelModeColor(mode.id) }}>
+                    {mode.icon}
+                  </div>
+                  <div className="travel-mode-label">{mode.label}</div>
+                  {preferences.commute.travelModes[mode.id].enabled && (
+                    <div className="travel-mode-distance">
+                      {preferences.commute.travelModes[mode.id].distance} km
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+          
+          <div className="distance-slider-container">
+            <label>
+              Maximum Travel Distance: <span className="distance-value">{preferences.commute.travelModes[preferences.commute.travelMode].distance} km</span>
+            </label>
+            <input
+              type="range"
+              min="1"
+              max={currentTravelMode.maxDistance}
+              step="1"
+              value={preferences.commute.travelModes[preferences.commute.travelMode].distance}
+              onChange={(e) => handleInputChange('commute', 'travelModes', {
+                ...preferences.commute.travelModes,
+                [preferences.commute.travelMode]: {
+                  ...preferences.commute.travelModes[preferences.commute.travelMode],
+                  distance: parseInt(e.target.value)
+                }
+              })}
+              className="distance-slider"
+            />
+            <div className="distance-range">
+              <span>1 km</span>
+              <span>{currentTravelMode.maxDistance} km</span>
+            </div>
+          </div>
+          
+          <div className="commute-map-container">
+            <div ref={mapRef} className="commute-map"></div>
+            {!preferences.commute.workAddress && (
+              <div className="map-overlay">
+                <p>Enter an address above to see your commute range</p>
+              </div>
+            )}
           </div>
         </div>
-      </div>
 
-      <div className="form-section">
-        <h2>What Matters Most for You?</h2>
-        <p className="section-description">Drag and drop to set priorities for what matters most in your neighborhood.</p>
-        
-        <div className="priority-section">
-          <div className="priority-list">
-            {priorityItems.map((item, index) => (
+        <div className="form-section">
+          <h2>What is important to you?</h2>
+          <p className="section-description">We use these lifestyle preferences to help you narrow down the best places to visit, so please select at least 3. You can always change these later.</p>
+          
+          <div className="lifestyle-grid">
+            {lifestyleOptions.map((item) => (
               <div 
-                key={item.name}
-                className="priority-item"
-                draggable
-                onDragStart={(e) => handleDragStart(e, item)}
-                onDragOver={(e) => handleDragOver(e, index)}
-                onDrop={(e) => handleDrop(e, index)}
+                key={item} 
+                className={`lifestyle-item ${preferences.lifestylePreferences.includes(item) ? 'selected' : ''}`}
+                onClick={() => handleCheckboxChange('lifestylePreferences', item)}
               >
-                <div className="priority-rank">{index + 1}</div>
-                <div className="priority-name">
-                  {item.name.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}
-                </div>
+                {item.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}
+              </div>
+            ))}
+            
+            {/* Custom lifestyle preferences */}
+            {preferences.customLifestyles.map((item, index) => (
+              <div 
+                key={`custom-${index}`} 
+                className={`lifestyle-item ${item.value ? 'selected' : ''}`}
+                onClick={() => handleCustomLifestyleChange(index)}
+              >
+                {item.name}
                 <button
                   type="button"
                   className="remove-btn"
-                  onClick={() => removeFromPriorities(item.name)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    removeCustomLifestyle(index);
+                  }}
                   aria-label={`Remove ${item.name}`}
                 >
                   ×
                 </button>
               </div>
             ))}
-            {priorityItems.length === 0 && (
-              <div className="empty-priorities">
-                <p>Select items from below to add to your priorities</p>
-              </div>
-            )}
-          </div>
-          
-          <div className="available-items">
-            <h3>Available Items</h3>
-            <div className="available-items-grid">
-              {mustHaveOptions.map((item) => (
-                <div 
-                  key={item}
-                  className={`available-item ${priorityItems.some(i => i.name === item) ? 'in-list' : ''}`}
-                  onClick={() => !priorityItems.some(i => i.name === item) && addToPriorities(item)}
-                >
-                  {item.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}
-                  {!priorityItems.some(i => i.name === item) && (
-                    <span className="add-icon">+</span>
-                  )}
-                </div>
-              ))}
+            
+            {/* Add new preference button */}
+            <div className="lifestyle-item add-preference">
+              <input
+                type="text"
+                value={newLifestyle}
+                onChange={(e) => setNewLifestyle(e.target.value)}
+                placeholder="Add a New Preference Here"
+                className="new-preference-input"
+                onKeyPress={(e) => {
+                  if (e.key === 'Enter' && newLifestyle.trim()) {
+                    e.preventDefault();
+                    addCustomLifestyle();
+                  }
+                }}
+              />
+              <button
+                type="button"
+                className="add-btn"
+                onClick={addCustomLifestyle}
+                disabled={!newLifestyle.trim()}
+              >
+                +
+              </button>
             </div>
           </div>
         </div>
-      </div>
 
-      <div className="form-actions">
-        {error && (
-          <div className="error-message">
-            <span className="error-icon">⚠️</span>
-            <span>{error}</span>
+        <div className="form-section">
+          <h2>What Matters Most for You?</h2>
+          <p className="section-description">Drag and drop to set priorities for what matters most in your neighborhood.</p>
+          
+          <div className="priority-section">
+            <div className="priority-list">
+              {priorityItems.map((item, index) => (
+                <div 
+                  key={item.name}
+                  className="priority-item"
+                  draggable
+                  onDragStart={(e) => handleDragStart(e, item)}
+                  onDragOver={(e) => handleDragOver(e, index)}
+                  onDrop={(e) => handleDrop(e, index)}
+                >
+                  <div className="priority-rank">{index + 1}</div>
+                  <div className="priority-name">
+                    {item.name.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}
+                  </div>
+                  <button
+                    type="button"
+                    className="remove-btn"
+                    onClick={() => removeFromPriorities(item.name)}
+                    aria-label={`Remove ${item.name}`}
+                  >
+                    ×
+                  </button>
+                </div>
+              ))}
+              {priorityItems.length === 0 && (
+                <div className="empty-priorities">
+                  <p>Select items from below to add to your priorities</p>
+                </div>
+              )}
+            </div>
+            
+            <div className="available-items">
+              <h3>Available Items</h3>
+              <div className="available-items-grid">
+                {mustHaveOptions.map((item) => (
+                  <div 
+                    key={item}
+                    className={`available-item ${priorityItems.some(i => i.name === item) ? 'in-list' : ''}`}
+                    onClick={() => !priorityItems.some(i => i.name === item) && addToPriorities(item)}
+                  >
+                    {item.replace(/([A-Z])/g, ' $1').replace(/^./, (str) => str.toUpperCase())}
+                    {!priorityItems.some(i => i.name === item) && (
+                      <span className="add-icon">+</span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-        )}
-        <button 
-          type="submit" 
-          className={`submit-btn ${loading ? 'loading' : ''}`}
-          disabled={loading}
-        >
-          {loading ? (
-            <>
-              <span className="spinner"></span>
-              Finding Your Perfect Neighborhood...
-            </>
-          ) : (
-            'Find My Perfect Neighborhood'
+        </div>
+
+        <div className="form-actions">
+          {error && (
+            <div className="error-message">
+              <span className="error-icon">⚠️</span>
+              <span>{error}</span>
+            </div>
           )}
-        </button>
-      </div>
-    </form>
+          <button 
+            type="submit" 
+            className={`submit-btn ${loading ? 'loading' : ''}`}
+            disabled={loading}
+          >
+            {loading ? (
+              <>
+                <span className="spinner"></span>
+                Finding Your Perfect Neighborhood...
+              </>
+            ) : (
+              'Find My Perfect Neighborhood'
+            )}
+          </button>
+        </div>
+      </form>
+    </div>
   );
 };
 
