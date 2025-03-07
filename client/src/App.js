@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import FloatingChatButton from './components/FloatingChatButton';
 import Home from './pages/Home';
 import NeighborhoodFinder from './pages/NeighborhoodFinder';
 import PlaceRecommender from './pages/PlaceRecommender';
@@ -26,6 +27,7 @@ function App() {
               <Route path="/social" element={<SocialConnector />} />
             </Routes>
           </main>
+          <FloatingChatButton />
           <Footer />
         </div>
       </Router>

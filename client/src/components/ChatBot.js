@@ -45,16 +45,25 @@ const ChatBot = () => {
     setIsTyping(true);
     
     try {
-      // Send message to backend
-      const response = await fetch('http://localhost:3000/bot/message', {
+      // Get token from your auth state or storage
+      const token = localStorage.getItem('authToken');
+      
+      // Send message to the bot
+      const sendResponse = await fetch('http://localhost:5000/api/chatbot/message', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+          'Access-Control-Allow-Origin': '*'
         },
         body: JSON.stringify({ message: inputText }),
       });
       
-      const data = await response.json();
+      if (!sendResponse.ok) {
+        throw new Error(`HTTP error! Status: ${sendResponse.status}`);
+      }
+      
+      const data = await sendResponse.json();
       
       // Add bot response after a small delay to simulate typing
       setTimeout(() => {
@@ -70,7 +79,7 @@ const ChatBot = () => {
       }, 1000);
       
     } catch (error) {
-      console.error('Error sending message to bot:', error);
+      console.error('Error communicating with bot:', error);
       
       // Add error message
       setTimeout(() => {
@@ -156,4 +165,4 @@ const ChatBot = () => {
   );
 };
 
-export default ChatBot; 
+export default ChatBot;
