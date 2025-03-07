@@ -84,6 +84,12 @@ const api = {
         headers: createHeaders(token),
         body: JSON.stringify({ message }),
       }).then(handleResponse);
+    },
+    receiveMessage: (token) => {
+      return fetch(`${API_BASE_URL}/bot/receive`, {
+        method: 'GET',
+        headers: createHeaders(token)
+      }).then(handleResponse);
     }
   },
   
