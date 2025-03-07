@@ -1,21 +1,35 @@
 import base64
 import os
-# from google import genai
-# from google.genai import types
+from flask import Flask, jsonify, request
+from flask_cors import CORS
 import google.generativeai as genai
 
 
 def chatbot_controller():
-    client = genai.Client(
-        api_key=os.environ.get("GEMINI_API_KEY"),
-    )
+    try:
+        data = request.json
+        user_input = data.get("message", "")
 
-    model = "gemini-2.0-pro-exp-02-05"
-    contents = [
-        types.Content(
-            role="user",
-            parts=[
-                types.Part.from_text(text="""These are some of the sample prompts along with their sample responses :
+        if not user_input:
+            return jsonify({"error": "Message is required"}), 400
+
+        # Initialize the client with API key
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            return jsonify({"error": "API key not found in environment variables"}), 500
+            
+        client = genai.Client(api_key=api_key)
+
+        model = "gemini-2.0-pro-exp-02-05"
+        
+        # Define conversation contents
+        contents = [
+            Content(
+                role="user",
+                parts=[
+                    Part.from_text(
+                        text=
+                    """These are some of the sample prompts along with their sample responses :
 1. General Facilities Inquiry
 Prompt:
 \"Provide detailed information about essential facilities available in [location]. Include hospitals, schools, supermarkets, public transport options, and safety ratings.\"
@@ -723,64 +737,65 @@ Example Response:
 *\"Top pet-friendly cities:
 [City A] – Dog parks, pet-friendly restaurants.
 [City B] – Affordable pet care & grooming.
-[City C] – Easy to find pet-friendly apartments.\"*"""),
-            ],
-        ),
-        types.Content(
-            role="model",
-            parts=[
-                types.Part.from_text(text="""Okay, I'm ready to be your relocate.io smart relocation assistant!  I understand the types of queries you've provided and the kind of detailed, structured responses expected. I'll use the examples as a template for answering future prompts.  I will focus on providing information that is:
+[City C] – Easy to find pet-friendly apartments.\"*"""
+                    ),
+                ],
+            ),
+            Content(
+                role="model",
+                parts=[
+                    Part.from_text(text="""Okay, I'm ready to be your relocate.io smart relocation assistant!  I understand the types of queries you've provided and the kind of detailed, structured responses expected. I'll use the examples as a template for answering future prompts.  I will focus on providing information that is:
 
-*   **Comprehensive:** Covering multiple aspects of the query.
-*   **Structured:** Using bullet points, lists, and clear headings for readability.
-*   **Comparative:** Offering comparisons between options (e.g., service providers, neighborhoods).
-*   **Personalized:** Tailoring suggestions to the user's stated preferences (budget, lifestyle, etc.).
-*   **Actionable:** Providing clear next steps or resources (e.g., websites, contact numbers).
-*   **Specific:** Giving concrete examples (names of places, prices, etc.) whenever possible.
-* **Up-to-Date**: I am powered by Google, so will ensure my knowledge cutoff date isn't an issue.
+                    *   **Comprehensive:** Covering multiple aspects of the query.
+                    *   **Structured:** Using bullet points, lists, and clear headings for readability.
+                    *   **Comparative:** Offering comparisons between options (e.g., service providers, neighborhoods).
+                    *   **Personalized:** Tailoring suggestions to the user's stated preferences (budget, lifestyle, etc.).
+                    *   **Actionable:** Providing clear next steps or resources (e.g., websites, contact numbers).
+                    *   **Specific:** Giving concrete examples (names of places, prices, etc.) whenever possible.
+                    * **Up-to-Date**: I am powered by Google, so will ensure my knowledge cutoff date isn't an issue.
 
-To make this work effectively, please provide me with the following information when you ask a question:
+                    To make this work effectively, please provide me with the following information when you ask a question:
 
-1.  **Location:** Be as specific as possible (city, region, or even neighborhood). If comparing locations, list all of them.
-2.  **User Profile (when relevant):**
-    *   **Budget:** (e.g., \"My budget for rent is $1500/month\")
-    *   **Commute Preference:** (e.g., \"I want a commute under 30 minutes,\" \"I prefer public transport\")
-    *   **Lifestyle:** (e.g., \"I enjoy nightlife,\" \"I prefer quiet areas,\" \"I have a family\")
-    *   **Must-haves:** (e.g., \"Good schools are essential,\" \"I need high-speed internet\")
-    *   **Compromises:** (e.g., \"I'm willing to live further out to save money,\" \"A small apartment is fine\")
-    *   **Interests/hobbies:** (Helpful to add for a better experience)
-    * **Pet Owner:** Yes/No. If, yes what kind of pet.
-    * **Children**: Yes/No If so, how many, what age.
+                    1.  **Location:** Be as specific as possible (city, region, or even neighborhood). If comparing locations, list all of them.
+                    2.  **User Profile (when relevant):**
+                        *   **Budget:** (e.g., \"My budget for rent is $1500/month\")
+                        *   **Commute Preference:** (e.g., \"I want a commute under 30 minutes,\" \"I prefer public transport\")
+                        *   **Lifestyle:** (e.g., \"I enjoy nightlife,\" \"I prefer quiet areas,\" \"I have a family\")
+                        *   **Must-haves:** (e.g., \"Good schools are essential,\" \"I need high-speed internet\")
+                        *   **Compromises:** (e.g., \"I'm willing to live further out to save money,\" \"A small apartment is fine\")
+                        *   **Interests/hobbies:** (Helpful to add for a better experience)
+                        * **Pet Owner:** Yes/No. If, yes what kind of pet.
+                        * **Children**: Yes/No If so, how many, what age.
 
-The more information you give me, the better I can tailor my recommendations. Let's get started! Ask me anything.
-"""),
-            ],
-        ),
-        types.Content(
-            role="user",
-            parts=[
-                types.Part.from_text(text="""INSERT_INPUT_HERE"""),
-            ],
-        ),
-    ]
-    generate_content_config = types.GenerateContentConfig(
-        temperature=1,
-        top_p=0.95,
-        top_k=64,
-        max_output_tokens=8192,
-        response_mime_type="text/plain",
-        system_instruction=[
-            types.Part.from_text(text="""you are relocate.io A smart relocation assistant that analyzes user preferences (budget, commute time, lifestyle, must-haves vs. compromises) to suggest the best areas or homes for long-term stays. It also provides customized recommendations for essential services (gyms, restaurants, transport routes, social spots) based on their personality and past search behavior and Google Map History. 
-"""),
-        ],
-    )
+                    The more information you give me, the better I can tailor my recommendations. Let's get started! Ask me anything.
+                    """),
+                ],
+            ),
+            Content(
+                role="user",
+                parts=[
+                    Part.from_text(text=user_input),
+                ],
+            ),
+        ]
+        
+        # Stream the response
+        response = ""
+        for chunk in client.generate_content(
+            model=model,
+            contents=contents,
+            generation_config=GenerateContentConfig(
+                temperature=1,
+                top_p=0.95,
+                top_k=64,
+                max_output_tokens=8192
+            ),
+            stream=True
+        ):
+            if chunk.text:
+                response += chunk.text
 
-    for chunk in client.models.generate_content_stream(
-        model=model,
-        contents=contents,
-        config=generate_content_config,
-    ):
-        print(chunk.text, end="")
+        return jsonify({"response": response}), 200
 
-if __name__ == "__main__":
-    generate()
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
