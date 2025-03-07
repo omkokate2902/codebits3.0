@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import '../styles/components/ChatBot.css';
+import ReactMarkdown from 'react-markdown';
 
 // Import the Google Generative AI library
 import { GoogleGenerativeAI } from "@google/generative-ai";
@@ -8,7 +9,7 @@ const ChatBot = ({ isDialog = false }) => {
   const [messages, setMessages] = useState([
     { 
       id: 1, 
-      text: "Hi there! I'm your relocation assistant. How can I help you today?", 
+      text: "Hi there! I'm your **relocation assistant**. How can I help you today?", 
       sender: 'bot',
       timestamp: new Date()
     }
@@ -16,6 +17,7 @@ const ChatBot = ({ isDialog = false }) => {
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
   const [chatSession, setChatSession] = useState(null);
+  const [apiInitialized, setApiInitialized] = useState(false); // Track API initialization
   const messagesEndRef = useRef(null);
   const chatContainerRef = useRef(null);
 
@@ -24,7 +26,7 @@ const ChatBot = ({ isDialog = false }) => {
     const initializeGeminiAPI = async () => {
       try {
         // Initialize the API with your key
-        const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
+        const apiKey = "AIzaSyAcqGdxbyr7TwHGd7f_QZ7x6qCHYFLYwVQ";
         if (!apiKey) {
           console.error("API key not found. Please set REACT_APP_GEMINI_API_KEY in your environment variables.");
           return;
@@ -35,7 +37,7 @@ const ChatBot = ({ isDialog = false }) => {
         // Get the model
         const model = genAI.getGenerativeModel({
           model: "gemini-2.0-pro-exp-02-05",
-          systemInstruction: "you are relocate.io A smart relocation assistant that analyzes user preferences (budget, commute time, lifestyle, must-haves vs. compromises) to suggest the best areas or homes for long-term stays. It also provides customized recommendations for essential services (gyms, restaurants, transport routes, social spots) based on their personality and past search behavior and Google Map History."
+          systemInstruction: "You are relocate.io, a smart relocation assistant that analyzes user preferences (budget, commute time, lifestyle, must-haves vs. compromises) to suggest the best areas or homes for long-term stays. Also provide customized recommendations for essential services (gyms, restaurants, transport routes, social spots) based on their personality and past search behavior and Google Map History. FORMAT YOUR RESPONSES: Use **bold** for important terms, *italics* for emphasis, and create bullet points with - or numbered lists with 1. 2. 3. when listing multiple items. Keep responses well-structured with clear sections."
         });
 
         // Configuration for the model
@@ -57,14 +59,17 @@ const ChatBot = ({ isDialog = false }) => {
             },
             {
               role: "model",
-              parts: [{ text: "Hi there! I'm your relocation assistant. How can I help you today? To give you the best recommendations, could you share some details about your preferences such as budget, commute time, lifestyle, and any must-haves for your new location?" }]
+              parts: [{ text: "Hi there! I'm your **relocation assistant**. How can I help you today? To give you the best recommendations, could you share some details about your preferences such as:\n\n- **Budget** range\n- Desired **commute time**\n- Your **lifestyle** priorities\n- Any **must-haves** for your new location" }]
             }
           ]
         });
 
         setChatSession(session);
+        setApiInitialized(true);
       } catch (error) {
         console.error("Error initializing Gemini API:", error);
+        // Set initialized to true even on error so user can still type and send messages
+        setApiInitialized(true);
       }
     };
 
@@ -91,7 +96,7 @@ const ChatBot = ({ isDialog = false }) => {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     
-    if (!inputText.trim() || !chatSession) return;
+    if (!inputText.trim()) return;
     
     // Add user message
     const userMessage = {
@@ -106,15 +111,19 @@ const ChatBot = ({ isDialog = false }) => {
     setIsTyping(true);
     
     try {
-      // Send message to Gemini API
-      const result = await chatSession.sendMessage(inputText);
-      const botResponse = result.response.text();
+      // If chatSession is available, send to Gemini API
+      let botResponse = "I'm sorry, I couldn't connect to my AI service. Please check your API key and try again.";
+      
+      if (chatSession) {
+        const result = await chatSession.sendMessage(inputText);
+        botResponse = result.response.text();
+      }
       
       // Add bot response after a small delay to simulate typing
       setTimeout(() => {
         const botMessage = {
           id: messages.length + 2,
-          text: botResponse || "I'm sorry, I couldn't process that request.",
+          text: botResponse,
           sender: 'bot',
           timestamp: new Date()
         };
@@ -160,7 +169,11 @@ const ChatBot = ({ isDialog = false }) => {
             className={`message ${message.sender === 'bot' ? 'bot-message' : 'user-message'}`}
           >
             <div className="message-content">
-              <p>{message.text}</p>
+              {message.sender === 'bot' ? (
+                <ReactMarkdown>{message.text}</ReactMarkdown>
+              ) : (
+                <p>{message.text}</p>
+              )}
               <span className="message-time">{formatTime(message.timestamp)}</span>
             </div>
           </div>
@@ -185,7 +198,10 @@ const ChatBot = ({ isDialog = false }) => {
           placeholder="Type your message here..."
           disabled={isTyping}
         />
-        <button type="submit" disabled={!inputText.trim() || isTyping || !chatSession}>
+        <button 
+          type="submit" 
+          disabled={!inputText.trim() || isTyping || !apiInitialized}
+        >
           Send
         </button>
       </form>
