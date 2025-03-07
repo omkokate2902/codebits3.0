@@ -1,0 +1,33 @@
+Timeline Data Summary:
+
+Total locations: 100
+
+Sample locations:
+Location 1: Time: 2023-01-01T08:00:00Z, Lat: 17.7197, Lng: 73.3987
+Location 2: Time: 2023-01-01T09:15:00Z, Lat: 17.7198, Lng: 73.3990
+Location 3: Time: 2023-01-01T12:30:00Z, Lat: 17.7250, Lng: 73.4010
+Location 4: Time: 2023-01-01T18:45:00Z, Lat: 17.7197, Lng: 73.3987
+Location 5: Time: 2023-01-02T08:00:00Z, Lat: 17.7197, Lng: 73.3987
+
+Total timeline objects: 50
+
+Sample timeline objects:
+Visit 1: Place: Home, Address: 123 Main St, Khed, From: 2023-01-01T00:00:00Z, To: 2023-01-01T08:00:00Z
+Activity 1: Type: WALKING, From: 2023-01-01T08:00:00Z, To: 2023-01-01T08:30:00Z
+Visit 2: Place: Coffee Shop, Address: 456 Market St, Khed, From: 2023-01-01T08:30:00Z, To: 2023-01-01T09:30:00Z
+Activity 2: Type: WALKING, From: 2023-01-01T09:30:00Z, To: 2023-01-01T10:00:00Z
+Visit 3: Place: Office, Address: 789 Work Ave, Khed, From: 2023-01-01T10:00:00Z, To: 2023-01-01T17:00:00Z
+Activity 3: Type: WALKING, From: 2023-01-01T17:00:00Z, To: 2023-01-01T17:30:00Z
+Visit 4: Place: Grocery Store, Address: 101 Food St, Khed, From: 2023-01-01T17:30:00Z, To: 2023-01-01T18:30:00Z
+Activity 4: Type: WALKING, From: 2023-01-01T18:30:00Z, To: 2023-01-01T19:00:00Z
+Visit 5: Place: Home, Address: 123 Main St, Khed, From: 2023-01-01T19:00:00Z, To: 2023-01-02T08:00:00Z
+Activity 5: Type: WALKING, From: 2023-01-02T08:00:00Z, To: 2023-01-02T08:30:00Z
+Visit 6: Place: Coffee Shop, Address: 456 Market St, Khed, From: 2023-01-02T08:30:00Z, To: 2023-01-02T09:30:00Z
+Activity 6: Type: WALKING, From: 2023-01-02T09:30:00Z, To: 2023-01-02T10:00:00Z
+Visit 7: Place: Office, Address: 789 Work Ave, Khed, From: 2023-01-02T10:00:00Z, To: 2023-01-02T17:00:00Z
+Activity 7: Type: WALKING, From: 2023-01-02T17:00:00Z, To: 2023-01-02T17:30:00Z
+Visit 8: Place: Gym, Address: 202 Fitness Blvd, Khed, From: 2023-01-02T17:30:00Z, To: 2023-01-02T19:00:00Z
+Activity 8: Type: WALKING, From: 2023-01-02T19:00:00Z, To: 2023-01-02T19:30:00Z
+Visit 9: Place: Restaurant, Address: 303 Food Ave, Khed, From: 2023-01-02T19:30:00Z, To: 2023-01-02T21:00:00Z
+Activity 9: Type: WALKING, From: 2023-01-02T21:00:00Z, To: 2023-01-02T21:30:00Z
+Visit 10: Place: Home, Address: 123 Main St, Khed, From: 2023-01-02T21:30:00Z, To: 2023-01-03T08:00:00Z 
