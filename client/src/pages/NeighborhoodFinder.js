@@ -1,9 +1,10 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useContext } from 'react';
 import PreferenceForm from '../components/PreferenceForm';
 import ReviewSelection from '../components/ReviewSelection';
 import NeighborhoodResults from '../components/NeighborhoodResults';
 import { API } from '../utils/api';
 import '../styles/pages/NeighborhoodFinder.css';
+import { AuthContext } from '../context/AuthContext';
 
 const NeighborhoodFinder = () => {
   const [preferences, setPreferences] = useState(null);
@@ -13,6 +14,7 @@ const NeighborhoodFinder = () => {
   const [timelineData, setTimelineData] = useState(null);
   const [currentStep, setCurrentStep] = useState('form'); // 'form', 'review', or 'results'
   const [formData, setFormData] = useState(null);
+  const { user } = useContext(AuthContext);
 
   // Load user preferences from backend when component mounts
   useEffect(() => {
@@ -69,7 +71,8 @@ const NeighborhoodFinder = () => {
         return (
           <PreferenceForm 
             onSubmit={handlePreferenceSubmit} 
-            onTimelineData={handleTimelineData} 
+            onTimelineData={handleTimelineData}
+            userId={user?.uid}
           />
         );
       case 'review':

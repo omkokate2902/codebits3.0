@@ -40,7 +40,7 @@
 .map-info-window h3 {
   margin: 0 0 5px 0;
   font-size: 1.1rem;
-  color: #4a6fa5;
+  color: #4285f4;
 }
 
 .map-info-window p {
@@ -55,12 +55,12 @@
   justify-content: space-between;
   padding: 1rem;
   background-color: white;
-  border-top: 1px solid var(--light-gray);
+  border-top: 1px solid #e0e0e0;
 }
 
 .map-control-btn {
   background-color: white;
-  border: 1px solid var(--medium-gray);
+  border: 1px solid #ccc;
   border-radius: 4px;
   padding: 0.5rem 1rem;
   font-size: 0.9rem;
@@ -69,14 +69,14 @@
 }
 
 .map-control-btn:hover {
-  background-color: var(--light-gray);
-  border-color: var(--dark-gray);
+  background-color: #f8f9fa;
+  border-color: #999;
 }
 
 .map-control-btn.active {
-  background-color: var(--primary-color);
+  background-color: #4285f4;
   color: white;
-  border-color: var(--primary-color);
+  border-color: #4285f4;
 }
 
 /* Responsive styles */

@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import '../styles/components/MapView.css';
 
-const MapView = ({ locations }) => {
+const MapView = ({ locations, center, zoom = 12 }) => {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
   const markers = useRef([]);
@@ -9,13 +9,13 @@ const MapView = ({ locations }) => {
   useEffect(() => {
     // Initialize map if Google Maps API is loaded
     if (window.google && mapRef.current && !mapInstance.current) {
-      // Default to a central location if no locations provided
-      const defaultCenter = { lat: 17.7197035, lng: 73.3987688 };
+      // Use provided center or default to San Francisco
+      const mapCenter = center || { lat: 37.7749, lng: -122.4194 };
       
       // Create the map
       mapInstance.current = new window.google.maps.Map(mapRef.current, {
-        center: defaultCenter,
-        zoom: 12,
+        center: mapCenter,
+        zoom: zoom,
         mapTypeControl: true,
         streetViewControl: false,
         fullscreenControl: true,
@@ -40,10 +40,10 @@ const MapView = ({ locations }) => {
       
       // Add new markers
       locations.forEach((location, index) => {
-        if (location.coordinates) {
+        if (location.position) {
           const position = {
-            lat: location.coordinates.lat,
-            lng: location.coordinates.lng
+            lat: location.position.lat,
+            lng: location.position.lng
           };
           
           // Create marker
@@ -63,8 +63,7 @@ const MapView = ({ locations }) => {
             content: `
               <div class="map-info-window">
                 <h3>${location.name}</h3>
-                <p>${location.city}, ${location.state}</p>
-                <p>${location.averageRent}</p>
+                <p>${location.type || 'Social Group'}</p>
               </div>
             `
           });
@@ -95,7 +94,7 @@ const MapView = ({ locations }) => {
         });
       }
     }
-  }, [locations]);
+  }, [locations, center, zoom]);
 
   // If no locations, show a message
   if (!locations || locations.length === 0) {
