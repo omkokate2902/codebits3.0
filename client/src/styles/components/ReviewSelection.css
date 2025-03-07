@@ -517,4 +517,145 @@
   .review-actions button {
     width: 100%;
   }
+}
+
+/* Commute section specific styles */
+.commute-section {
+  background-color: #f8f9fa;
+  border-left: 4px solid #4285f4;
+}
+
+.address-container {
+  display: flex;
+  align-items: flex-start;
+  background-color: white;
+  padding: 15px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-bottom: 20px;
+}
+
+.address-icon {
+  font-size: 1.5rem;
+  margin-right: 15px;
+  color: #4285f4;
+}
+
+.address-details {
+  flex: 1;
+}
+
+.address-label {
+  font-size: 0.9rem;
+  color: #666;
+  margin: 0 0 5px 0;
+}
+
+.address-value {
+  font-size: 1.1rem;
+  font-weight: 500;
+  color: #333;
+  margin: 0;
+}
+
+.no-address {
+  background-color: rgba(66, 133, 244, 0.1);
+  padding: 15px;
+  border-radius: 10px;
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.no-address p {
+  color: #4285f4;
+  margin: 0;
+  font-style: italic;
+}
+
+.travel-modes-container {
+  margin-top: 20px;
+}
+
+.travel-modes-container h4 {
+  font-size: 1.1rem;
+  color: #333;
+  margin-bottom: 15px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.travel-modes-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 15px;
+}
+
+.travel-mode-card {
+  display: flex;
+  align-items: center;
+  background-color: white;
+  padding: 12px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  border-left: 3px solid;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.travel-mode-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.travel-mode-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  color: white;
+  font-size: 1.2rem;
+}
+
+.travel-mode-details {
+  display: flex;
+  flex-direction: column;
+}
+
+.travel-mode-name {
+  font-weight: 500;
+  color: #333;
+  margin-bottom: 3px;
+}
+
+.travel-mode-distance {
+  font-size: 0.9rem;
+  color: #666;
+}
+
+.no-travel-modes {
+  background-color: rgba(66, 133, 244, 0.1);
+  padding: 15px;
+  border-radius: 10px;
+  text-align: center;
+}
+
+.no-travel-modes p {
+  color: #4285f4;
+  margin: 0;
+  font-style: italic;
+}
+
+/* Responsive styles for commute section */
+@media (max-width: 768px) {
+  .travel-modes-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (max-width: 480px) {
+  .travel-modes-grid {
+    grid-template-columns: 1fr;
+  }
 } 
