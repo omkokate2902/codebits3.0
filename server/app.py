@@ -5,6 +5,8 @@ from routes.housing_routes import housing_bp
 from routes.user_routes import user_routes
 from routes.upload_routes import upload_routes  # Import missing routes
 from routes.chatbot_routes import chatbot_bp  # Import missing routes
+from routes.social_routes import social_blueprint
+
 import os
 from datetime import timedelta
 
@@ -47,6 +49,10 @@ app.register_blueprint(housing_bp, url_prefix="/api/housing")
 
 # Register chatbot routes
 app.register_blueprint(chatbot_bp, url_prefix="/api/chatbot")
+
+# Register Blueprints
+app.register_blueprint(social_blueprint, url_prefix="/social")
+
 
 @app.route("/", methods=["GET"])
 def health_check():
