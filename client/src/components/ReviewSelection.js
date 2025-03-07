@@ -7,28 +7,67 @@ const ReviewSelection = ({ preferences, recommendations, onConfirm, onBack }) =>
   // Format the commute preferences
   const formatCommutePreferences = () => {
     const { commute } = preferences;
+    
+    // Map of travel modes to icons and colors
+    const travelModeIcons = {
+      walking: { icon: '🚶', color: '#4CAF50', label: 'Walking' },
+      bicycling: { icon: '🚲', color: '#FF9800', label: 'Bicycling' },
+      transit: { icon: '🚌', color: '#2196F3', label: 'Transit' },
+      driving: { icon: '🚗', color: '#F44336', label: 'Driving' }
+    };
+    
+    // Get enabled travel modes
     const enabledModes = Object.entries(commute.travelModes)
-      .filter(([_, details]) => details.enabled)
-      .map(([mode, details]) => `${mode} (${details.distance} km)`);
+      .filter(([_, details]) => details.enabled);
 
     return (
-      <div className="review-section">
+      <div className="review-section commute-section">
         <h3>Commute Preferences</h3>
-        {commute.workAddress && (
-          <p><strong>Work Address:</strong> {commute.workAddress}</p>
-        )}
-        {enabledModes.length > 0 ? (
-          <div>
-            <p><strong>Travel Modes:</strong></p>
-            <ul>
-              {enabledModes.map((mode, index) => (
-                <li key={index}>{mode}</li>
-              ))}
-            </ul>
+        
+        {commute.workAddress ? (
+          <div className="address-container">
+            <div className="address-icon">📍</div>
+            <div className="address-details">
+              <p className="address-label">Work Address</p>
+              <p className="address-value">{commute.workAddress}</p>
+            </div>
           </div>
         ) : (
-          <p>No travel modes selected.</p>
+          <div className="no-address">
+            <p>No work address specified</p>
+          </div>
         )}
+        
+        <div className="travel-modes-container">
+          <h4>Travel Modes</h4>
+          
+          {enabledModes.length > 0 ? (
+            <div className="travel-modes-grid">
+              {enabledModes.map(([mode, details]) => (
+                <div 
+                  key={mode} 
+                  className="travel-mode-card"
+                  style={{ borderColor: travelModeIcons[mode].color }}
+                >
+                  <div 
+                    className="travel-mode-icon" 
+                    style={{ backgroundColor: travelModeIcons[mode].color }}
+                  >
+                    {travelModeIcons[mode].icon}
+                  </div>
+                  <div className="travel-mode-details">
+                    <span className="travel-mode-name">{travelModeIcons[mode].label}</span>
+                    <span className="travel-mode-distance">{details.distance} km</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="no-travel-modes">
+              <p>No travel modes selected</p>
+            </div>
+          )}
+        </div>
       </div>
     );
   };

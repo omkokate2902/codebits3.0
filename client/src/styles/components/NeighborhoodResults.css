@@ -1,25 +1,12 @@
 .results-container {
-  width: 100%;
-  max-width: 100%;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-}
-
-.results-header-container {
-  padding: 20px;
-  z-index: 2;
-  display: inline;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 30px 20px;
 }
 
 .results-header {
-  max-width: 1200px;
-  margin: 0 auto;
   text-align: center;
-  padding: 20px 0;
-  display: flex;
-  flex-direction: column;
+  margin-bottom: 40px;
 }
 
 .results-header h2 {
@@ -49,34 +36,11 @@
   background-color: #e9ecef;
 }
 
-.map-section {
-  width: 100%;
-  height: 60vh;
-  margin: 0;
-  /* position: relative; */
+.map-section, .neighborhoods-section {
+  margin-bottom: 40px;
 }
 
-.map-section h3 {
-  position: absolute;
-  top: 20px;
-  left: 20px;
-  z-index: 1;
-  background-color: rgba(255, 255, 255, 0.9);
-  padding: 10px 20px;
-  border-radius: 8px;
-  margin: 0;
-  font-size: 1.2rem;
-  color: #333;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-.neighborhoods-section {
-  max-width: 1200px;
-  margin: 40px auto;
-  padding: 0 20px;
-}
-
-.neighborhoods-section h3 {
+.map-section h3, .neighborhoods-section h3 {
   font-size: 1.5rem;
   color: #333;
   margin-bottom: 20px;
@@ -86,21 +50,18 @@
 
 .neighborhoods-list {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  grid-template-columns: 1fr;
   gap: 20px;
-  padding: 20px 0;
 }
 
-@media (max-width: 768px) {
-  .map-section {
-    height: 50vh;
-  }
-  
+@media (min-width: 768px) {
   .neighborhoods-list {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, 1fr);
   }
-  
-  .results-header h2 {
-    font-size: 1.5rem;
+}
+
+@media (min-width: 1024px) {
+  .neighborhoods-list {
+    grid-template-columns: repeat(3, 1fr);
   }
 } 

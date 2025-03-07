@@ -1,172 +1,156 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
-import SocialGroupCard from '../components/SocialGroupCard';
-import MapView from '../components/MapView';
 import { AuthContext } from '../context/AuthContext';
 import * as userStorage from '../utils/userStorage';
 import '../styles/pages/SocialConnector.css';
 
 const SocialConnector = () => {
   const { user } = useContext(AuthContext);
-  const [groups, setGroups] = useState([]);
-  const [loading, setLoading] = useState(false);
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [filters, setFilters] = useState({
-    type: 'all',
-    interest: 'all',
-    radius: 10
+    category: 'all',
+    date: 'all'
   });
-  const [mapLocations, setMapLocations] = useState([]);
-  const [location, setLocation] = useState({ lat: 37.7749, lng: -122.4194 });
-  const [interests, setInterests] = useState(['Sports', 'Music', 'Art', 'Technology', 'Food', 'Travel']);
+  const [location, setLocation] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
-  const [compatibleUsers, setCompatibleUsers] = useState([]);
   const [showUserProfile, setShowUserProfile] = useState(false);
+  const [userPreferences, setUserPreferences] = useState(null);
+  const [userAnalysis, setUserAnalysis] = useState(null);
+  const [userPersona, setUserPersona] = useState(null);
+  const [isPersonalized, setIsPersonalized] = useState(false);
 
-  // Sample data for groups
-  const sampleGroups = [
-    {
-      id: 1,
-      name: 'Tech Enthusiasts',
-      description: 'A group for tech lovers to discuss the latest trends and innovations.',
-      members: 128,
-      location: 'San Francisco',
-      distance: '1.2 miles',
-      interests: ['Technology', 'Innovation', 'Coding'],
-      image: 'https://images.unsplash.com/photo-1531482615713-2afd69097998?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80',
-      coordinates: { lat: 37.7833, lng: -122.4167 }
-    },
-    {
-      id: 2,
-      name: 'Foodies Club',
-      description: 'Explore the best restaurants and food spots in the city.',
-      members: 256,
-      location: 'San Francisco',
-      distance: '0.8 miles',
-      interests: ['Food', 'Dining', 'Cooking'],
-      image: 'https://images.unsplash.com/photo-1504674900247-0877df9cc836?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80',
-      coordinates: { lat: 37.7937, lng: -122.4048 }
-    },
-    {
-      id: 3,
-      name: 'Outdoor Adventures',
-      description: 'Join us for hiking, camping, and outdoor activities.',
-      members: 189,
-      location: 'San Francisco',
-      distance: '2.5 miles',
-      interests: ['Outdoors', 'Hiking', 'Adventure'],
-      image: 'https://images.unsplash.com/photo-1551632811-561732d1e306?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80',
-      coordinates: { lat: 37.7694, lng: -122.4862 }
-    },
-    {
-      id: 4,
-      name: 'Book Club',
-      description: 'Monthly meetups to discuss interesting books and literature.',
-      members: 76,
-      location: 'San Francisco',
-      distance: '1.5 miles',
-      interests: ['Reading', 'Literature', 'Education'],
-      image: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?ixlib=rb-1.2.1&auto=format&fit=crop&w=1350&q=80',
-      coordinates: { lat: 37.7583, lng: -122.4294 }
-    }
-  ];
-
-  // Sample data for compatible users
-  const sampleCompatibleUsers = [
-    {
-      id: 1,
-      name: 'Alex Johnson',
-      persona: 'active',
-      compatibilityScore: 92,
-      traits: ['Outdoor enthusiast', 'Early riser', 'Health-conscious'],
-      preferences: {
-        budget: '$1200-1500',
-        location: 'Downtown',
-        moveInDate: '2023-08-01'
+  // Define fetchEvents before any useEffect that depends on it
+  const fetchEvents = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // Get user data from local storage if available
+      let userData = {};
+      let hasPersonalization = false;
+      
+      if (user && user.uid) {
+        const preferences = userPreferences || userStorage.getUserPreferences(user.uid);
+        const analysisResults = userAnalysis || userStorage.getUserAnalysis(user.uid);
+        const persona = userPersona || userStorage.getUserPersona(user.uid);
+        
+        // Save to state for future use
+        if (preferences && !userPreferences) setUserPreferences(preferences);
+        if (analysisResults && !userAnalysis) setUserAnalysis(analysisResults);
+        if (persona && !userPersona) setUserPersona(persona);
+        
+        // Check if we have data for personalization
+        hasPersonalization = !!(
+          (preferences && preferences.lifestylePreferences && preferences.lifestylePreferences.length > 0) ||
+          (analysisResults && analysisResults.lifestyle_indicators && analysisResults.lifestyle_indicators.length > 0) ||
+          persona
+        );
+        
+        // Prepare user data for API request
+        userData = {
+          userId: user.uid,
+          preferences: preferences || {},
+          analysisResults: analysisResults || {},
+          persona: persona || 'balanced'
+        };
+        
+        console.log('Sending user data with event request:', userData);
       }
-    },
-    {
-      id: 2,
-      name: 'Jamie Smith',
-      persona: 'social',
-      compatibilityScore: 87,
-      traits: ['Outgoing', 'Creative', 'Music lover'],
-      preferences: {
-        budget: '$1000-1300',
-        location: 'Mission District',
-        moveInDate: '2023-07-15'
+      
+      // Make the actual API call to fetch events
+      const response = await fetch('http://localhost:3000/social/events', {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': user ? `Bearer ${user.token}` : ''
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API request failed with status ${response.status}`);
       }
-    },
-    {
-      id: 3,
-      name: 'Taylor Wong',
-      persona: 'balanced',
-      compatibilityScore: 85,
-      traits: ['Clean', 'Respectful', 'Professional'],
-      preferences: {
-        budget: '$1400-1800',
-        location: 'Marina District',
-        moveInDate: '2023-08-15'
+      
+      const data = await response.json();
+      console.log('Events received from API:', data);
+      
+      // Filter events based on user preferences if available
+      let filteredEvents = [...data];
+      
+      if (userData.preferences && userData.preferences.lifestylePreferences) {
+        // Map lifestyle preferences to event categories
+        const lifestyleToCategory = {
+          'activeLifestyle': ['Sports', 'Fitness'],
+          'outdoorActivities': ['Hiking', 'Adventure'],
+          'shopping': ['Shopping', 'Market'],
+          'casualDining': ['Food Festival', 'Street Food'],
+          'fineDining': ['Fine Dining', 'Gourmet'],
+          'nightlife': ['Party', 'Nightlife'],
+          'cultural': ['Cultural', 'Festival'],
+          'artsAndMusic': ['Concert', 'Art', 'Exhibition'],
+          'familyFriendly': ['Family', 'Kids'],
+          'quiet': ['Workshop', 'Seminar'],
+          'community': ['Community', 'Meetup'],
+          'socialGatherings': ['Social', 'Networking']
+        };
+        
+        // Get relevant categories based on user preferences
+        const relevantCategories = [];
+        userData.preferences.lifestylePreferences.forEach(pref => {
+          if (lifestyleToCategory[pref]) {
+            relevantCategories.push(...lifestyleToCategory[pref]);
+          }
+        });
+        
+        // If we have relevant categories, boost events that match
+        if (relevantCategories.length > 0) {
+          // Sort events to prioritize those matching user preferences
+          filteredEvents.sort((a, b) => {
+            const aMatches = relevantCategories.some(cat => 
+              a.category.toLowerCase().includes(cat.toLowerCase())
+            );
+            const bMatches = relevantCategories.some(cat => 
+              b.category.toLowerCase().includes(cat.toLowerCase())
+            );
+            
+            if (aMatches && !bMatches) return -1;
+            if (!aMatches && bMatches) return 1;
+            return 0;
+          });
+        }
       }
+      
+      // Apply filters from UI
+      if (filters.category !== 'all') {
+        filteredEvents = filteredEvents.filter(event => 
+          event.category.toLowerCase() === filters.category.toLowerCase()
+        );
+      }
+      
+      if (filters.date !== 'all') {
+        const filterMonth = new Date(filters.date).getMonth();
+        filteredEvents = filteredEvents.filter(event => {
+          const eventDate = new Date(event.date);
+          return eventDate.getMonth() === filterMonth;
+        });
+      }
+      
+      // Set the filtered events
+      setEvents(filteredEvents);
+      
+      // Update personalization state
+      setIsPersonalized(hasPersonalization);
+      
+    } catch (err) {
+      console.error('Error fetching events:', err);
+      setError('Failed to load events. Please try again.');
+    } finally {
+      setLoading(false);
     }
-  ];
+  }, [user, location, filters, userPreferences, userAnalysis, userPersona]);
 
-  // Sample user profile data
-  const sampleUserProfile = {
-    userId: user?.uid || 'sample-user-id',
-    name: user?.displayName || 'Sample User',
-    email: user?.email || 'sample@example.com',
-    persona: 'active',
-    preferences: {
-      userCategory: 'moderate',
-      lifestylePreferences: ['activeLifestyle', 'outdoorActivities', 'quietness', 'cleanliness'],
-      prioritizedMustHaves: [
-        { name: 'parking', priority: 1 },
-        { name: 'publicTransport', priority: 2 },
-        { name: 'parks', priority: 3 }
-      ]
-    },
-    analysisResults: {
-      personality_traits: [
-        'Active lifestyle enthusiast',
-        'Early riser',
-        'Organized',
-        'Health-conscious',
-        'Nature lover'
-      ],
-      lifestyle_indicators: [
-        'Regular exercise routine',
-        'Enjoys outdoor activities',
-        'Prefers quiet environments',
-        'Values cleanliness',
-        'Environmentally conscious'
-      ],
-      frequent_locations: [
-        'Gym',
-        'Park',
-        'Grocery Store',
-        'Coffee Shop',
-        'Hiking Trail'
-      ]
-    }
-  };
-
+  // Get user's location when component mounts
   useEffect(() => {
-    // Set sample data instead of fetching
-    setGroups(sampleGroups);
-    setCompatibleUsers(sampleCompatibleUsers);
-    setUserProfile(sampleUserProfile);
-    
-    // Create map locations from sample groups
-    const locations = sampleGroups.map(group => ({
-      id: group.id,
-      name: group.name,
-      position: group.coordinates,
-      type: 'group'
-    }));
-    setMapLocations(locations);
-    
-    // Comment out the actual API calls
-    /*
     // Get user's current location
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
@@ -178,106 +162,42 @@ const SocialConnector = () => {
         },
         (error) => {
           console.error('Error getting location:', error);
-          // Default to San Francisco if location access is denied
-          setLocation({ lat: 37.7749, lng: -122.4194 });
+          // Default to a central location if location access is denied
+          setLocation({ lat: 18.5204, lng: 73.8567 }); // Pune coordinates
         }
       );
     } else {
-      // Default to San Francisco if geolocation is not supported
-      setLocation({ lat: 37.7749, lng: -122.4194 });
+      // Default to a central location if geolocation is not supported
+      setLocation({ lat: 18.5204, lng: 73.8567 }); // Pune coordinates
     }
+  }, []);
 
-    // Fetch user interests if logged in
-    if (user) {
-      fetchUserInterests();
-      fetchUserProfile();
-    }
-    */
-  }, [user]);
-
-  // Comment out the useEffect that depends on fetchSocialGroups
-  /*
+  // Fetch events when component mounts or location changes
   useEffect(() => {
     if (location) {
-      fetchSocialGroups();
+      fetchEvents();
     }
-  }, [location, filters, fetchSocialGroups]);
-  */
+  }, [location, fetchEvents]);
 
-  // Commented out API functions
-  /*
-  const fetchUserInterests = useCallback(async () => {
-    try {
-      // API call to backend
-      const response = await fetch('http://localhost:3000/user/interests', {
-        headers: {
-          'Authorization': `Bearer ${user.token}`
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch user interests');
-      }
-
-      const data = await response.json();
-      setInterests(data.interests);
-    } catch (err) {
-      console.error('Error fetching user interests:', err);
+  useEffect(() => {
+    // If user is logged in, fetch user profile
+    if (user && user.uid) {
+      fetchUserProfile(user.uid);
     }
   }, [user]);
 
-  const fetchSocialGroups = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      // API call to backend
-      const response = await fetch('http://localhost:3000/social/groups', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': user ? `Bearer ${user.token}` : ''
-        },
-        body: JSON.stringify({
-          location,
-          ...filters
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch social groups');
-      }
-
-      const data = await response.json();
-      setGroups(data.groups);
-      
-      // Format data for map
-      const locations = data.groups.map(group => ({
-        id: group.id,
-        name: group.name,
-        position: group.coordinates,
-        type: 'group'
-      }));
-      setMapLocations(locations);
-      
-    } catch (err) {
-      console.error('Error fetching social groups:', err);
-      setError('Failed to load social groups. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  }, [location, filters, user]);
-
-  // Fetch user profile data from local storage and send to backend
-  const fetchUserProfile = useCallback(async () => {
-    if (!user || !user.uid) return;
-    
+  const fetchUserProfile = async (userId) => {
     try {
       // Get user data from local storage
-      const userData = userStorage.getUserData(user.uid);
-      const preferences = userStorage.getUserPreferences(user.uid);
-      const analysisResults = userStorage.getUserAnalysis(user.uid);
-      const persona = userStorage.getUserPersona(user.uid);
+      const userData = userStorage.getUserData(userId);
+      const preferences = userStorage.getUserPreferences(userId);
+      const analysisResults = userStorage.getUserAnalysis(userId);
+      const persona = userStorage.getUserPersona(userId);
+      
+      // Save to state for future use
+      if (preferences) setUserPreferences(preferences);
+      if (analysisResults) setUserAnalysis(analysisResults);
+      if (persona) setUserPersona(persona);
       
       if (!userData && !preferences && !analysisResults && !persona) {
         console.log('No user data found in local storage');
@@ -286,7 +206,7 @@ const SocialConnector = () => {
       
       // Combine all user data
       const userProfileData = {
-        userId: user.uid,
+        userId: userId,
         name: user.displayName || 'Anonymous User',
         email: user.email,
         preferences: preferences || {},
@@ -297,8 +217,8 @@ const SocialConnector = () => {
       
       setUserProfile(userProfileData);
       
-      // Send user profile data to backend
-      const response = await fetch('http://localhost:3000/social/profile', {
+      // In a real app, you would send this to your backend
+      const response = await fetch('http://localhost:3000/api/user/profile', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -307,95 +227,48 @@ const SocialConnector = () => {
         body: JSON.stringify(userProfileData)
       });
       
-      if (!response.ok) {
-        throw new Error('Failed to send user profile data');
-      }
+      // After fetching user profile, refresh events with the user data
+      fetchEvents();
       
-      // Get compatible users from response
-      const data = await response.json();
-      if (data.compatibleUsers) {
-        setCompatibleUsers(data.compatibleUsers);
-        console.log('Compatible users:', data.compatibleUsers);
-      }
     } catch (err) {
-      console.error('Error sending user profile data:', err);
-      setError('Failed to process user profile data');
+      console.error('Error processing user profile data:', err);
     }
-  }, [user]);
-  */
-
-  // Mock data for development
-  const groupTypes = [
-    { value: 'all', label: 'All Types' },
-    { value: 'social', label: 'Social' },
-    { value: 'activity', label: 'Activity' },
-    { value: 'professional', label: 'Professional' },
-    { value: 'hobby', label: 'Hobbies' }
-  ];
-
-  // Render compatible users section
-  const renderCompatibleUsers = () => {
-    if (!compatibleUsers || compatibleUsers.length === 0) {
-      return (
-        <div className="no-matches">
-          <h3>No compatible roommates found yet</h3>
-          <p>We'll notify you when we find potential matches based on your preferences.</p>
-        </div>
-      );
-    }
-    
-    return (
-      <div className="compatible-users">
-        <h3>Potential Roommate Matches</h3>
-        <div className="users-grid">
-          {compatibleUsers.map((compatibleUser, index) => (
-            <div key={index} className="user-card">
-              <div className="user-avatar" style={{ backgroundColor: getAvatarColor(compatibleUser.persona) }}>
-                {compatibleUser.name.charAt(0).toUpperCase()}
-              </div>
-              <div className="user-info">
-                <h4>{compatibleUser.name}</h4>
-                <div className="user-persona">
-                  <span className="persona-badge" style={{ backgroundColor: getPersonaColor(compatibleUser.persona) }}>
-                    {compatibleUser.persona.charAt(0).toUpperCase() + compatibleUser.persona.slice(1)}
-                  </span>
-                </div>
-                <div className="compatibility">
-                  <div className="compatibility-bar">
-                    <div 
-                      className="compatibility-fill" 
-                      style={{ width: `${compatibleUser.compatibilityScore}%` }}
-                    ></div>
-                  </div>
-                  <span>{compatibleUser.compatibilityScore}% Match</span>
-                </div>
-                <div className="user-traits">
-                  {compatibleUser.traits && compatibleUser.traits.slice(0, 3).map((trait, i) => (
-                    <span key={i} className="trait-badge">{trait}</span>
-                  ))}
-                </div>
-                <button className="connect-btn" onClick={() => alert(`Connect request sent to ${compatibleUser.name}`)}>
-                  Connect
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    );
   };
 
-  // Helper function to get avatar color based on persona
-  const getAvatarColor = (persona) => {
-    const colors = {
-      'luxury': '#8e44ad',
-      'active': '#27ae60',
-      'social': '#e67e22',
-      'budget': '#3498db',
-      'family': '#e74c3c',
-      'balanced': '#2c3e50'
-    };
-    return colors[persona] || colors.balanced;
+  // Get unique categories from events
+  const getCategories = () => {
+    const categories = events.map(event => event.category);
+    return ['all', ...new Set(categories)];
+  };
+
+  // Get unique months from events
+  const getMonths = () => {
+    const months = events.map(event => {
+      const date = new Date(event.date);
+      return date.toLocaleString('default', { month: 'long', year: 'numeric' });
+    });
+    return ['all', ...new Set(months)];
+  };
+
+  // Filter events based on selected filters
+  const getFilteredEvents = () => {
+    return events.filter(event => {
+      // Filter by category
+      if (filters.category !== 'all' && event.category !== filters.category) {
+        return false;
+      }
+      
+      // Filter by date
+      if (filters.date !== 'all') {
+        const eventDate = new Date(event.date);
+        const eventMonth = eventDate.toLocaleString('default', { month: 'long', year: 'numeric' });
+        if (eventMonth !== filters.date) {
+          return false;
+        }
+      }
+      
+      return true;
+    });
   };
 
   // Helper function to get persona badge color
@@ -476,20 +349,6 @@ const SocialConnector = () => {
                   </div>
                 </div>
               )}
-              
-              {userProfile.preferences.prioritizedMustHaves && userProfile.preferences.prioritizedMustHaves.length > 0 && (
-                <div>
-                  <h4>Must-Haves</h4>
-                  <div className="traits-list">
-                    {userProfile.preferences.prioritizedMustHaves.map((item, index) => (
-                      <span key={index} className="trait-badge priority-badge">
-                        {item.name.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                        <small> (Priority {item.priority})</small>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -505,17 +364,112 @@ const SocialConnector = () => {
     }));
   };
 
+  // Get category color for styling
+  const getCategoryColor = (category) => {
+    const colors = {
+      'Concert': '#9b59b6',
+      'Meetup': '#2ecc71',
+      'Party': '#f39c12',
+      'Festival': '#e74c3c',
+      'Open Mic': '#3498db',
+      'Tech Gathering': '#1abc9c'
+    };
+    return colors[category] || '#34495e';
+  };
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+    return new Date(dateString).toLocaleDateString('en-US', options);
+  };
+
+  // Render events grid
+  const renderEvents = () => {
+    if (loading) {
+      return (
+        <div className="loading-indicator">
+          <p>Finding events near you...</p>
+          <div className="spinner"></div>
+        </div>
+      );
+    }
+    
+    if (error) {
+      return (
+        <div className="error-message">
+          <p>{error}</p>
+          <button onClick={fetchEvents}>Try Again</button>
+        </div>
+      );
+    }
+    
+    return (
+      <div className="events-grid">
+        {filteredEvents.length > 0 ? (
+          filteredEvents.map((event, index) => (
+            <div key={index} className="event-card">
+              <div className="event-category" style={{ backgroundColor: getCategoryColor(event.category) }}>
+                {event.category}
+              </div>
+              <div className="event-content">
+                <h3 className="event-name">{event.name}</h3>
+                <div className="event-date">
+                  <i className="event-icon">📅</i>
+                  {formatDate(event.date)}
+                </div>
+                <div className="event-location">
+                  <i className="event-icon">📍</i>
+                  {event.location}
+                </div>
+                <div className="event-price">
+                  <i className="event-icon">💰</i>
+                  {event.ticket_details.price}
+                </div>
+                <div className="event-actions">
+                  <a 
+                    href={event.ticket_details.booking_link} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="book-btn"
+                  >
+                    Book Tickets
+                  </a>
+                  <button className="save-btn">Save</button>
+                </div>
+              </div>
+            </div>
+          ))
+        ) : (
+          <div className="no-results">
+            <p>No events found matching your criteria. Try adjusting your filters.</p>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const filteredEvents = getFilteredEvents();
+
   return (
     <div className="social-connector-container">
       <div className="social-header">
-        <h1>Connect with Roommates & Social Groups</h1>
-        <p>Find roommates with similar interests and join local social groups in your area</p>
+        <h1>Discover Events Near You</h1>
+        <p>Find and join exciting events happening in your area</p>
         
-        {user && userProfile && (
-          <button className="view-profile-btn" onClick={toggleUserProfile}>
-            View Your Profile
-          </button>
-        )}
+        <div className="header-actions">
+          {isPersonalized && (
+            <div className="personalization-badge">
+              <span className="personalization-icon">✨</span>
+              <span className="personalization-text">Personalized for you</span>
+            </div>
+          )}
+          
+          {user && userProfile && (
+            <button className="view-profile-btn" onClick={toggleUserProfile}>
+              View Your Profile
+            </button>
+          )}
+        </div>
       </div>
       
       {/* Render user profile overlay */}
@@ -525,92 +479,59 @@ const SocialConnector = () => {
         <div className="social-sidebar">
           <div className="filter-section">
             <div className="filter-group">
-              <label htmlFor="type">Group Type</label>
+              <label htmlFor="category">Event Category</label>
               <select 
-                id="type" 
-                name="type" 
-                value={filters.type} 
+                id="category" 
+                name="category" 
+                value={filters.category} 
                 onChange={handleFilterChange}
               >
-                {groupTypes.map(type => (
-                  <option key={type.value} value={type.value}>{type.label}</option>
+                {getCategories().map(category => (
+                  <option key={category} value={category}>
+                    {category === 'all' ? 'All Categories' : category}
+                  </option>
                 ))}
               </select>
             </div>
             
             <div className="filter-group">
-              <label htmlFor="interest">Interest</label>
+              <label htmlFor="date">Event Month</label>
               <select 
-                id="interest" 
-                name="interest" 
-                value={filters.interest} 
+                id="date" 
+                name="date" 
+                value={filters.date} 
                 onChange={handleFilterChange}
               >
-                <option value="all">All Interests</option>
-                {interests.map(interest => (
-                  <option key={interest} value={interest.toLowerCase()}>{interest}</option>
+                {getMonths().map(month => (
+                  <option key={month} value={month}>
+                    {month === 'all' ? 'All Months' : month}
+                  </option>
                 ))}
-              </select>
-            </div>
-            
-            <div className="filter-group">
-              <label htmlFor="radius">Distance (miles)</label>
-              <select 
-                id="radius" 
-                name="radius" 
-                value={filters.radius} 
-                onChange={handleFilterChange}
-              >
-                <option value="5">5 miles</option>
-                <option value="10">10 miles</option>
-                <option value="25">25 miles</option>
-                <option value="50">50 miles</option>
               </select>
             </div>
           </div>
           
-          {/* Render compatible users section */}
-          {user && compatibleUsers && (
-            <div className="compatible-users-section">
-              {renderCompatibleUsers()}
+          <div className="events-summary">
+            <h3>Upcoming Events</h3>
+            <div className="summary-stats">
+              <div className="stat-item">
+                <span className="stat-value">{events.length}</span>
+                <span className="stat-label">Total Events</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-value">{getCategories().length - 1}</span>
+                <span className="stat-label">Categories</span>
+              </div>
+              <div className="stat-item">
+                <span className="stat-value">{getMonths().length - 1}</span>
+                <span className="stat-label">Months</span>
+              </div>
             </div>
-          )}
+          </div>
         </div>
         
         <div className="social-main">
-          {loading ? (
-            <div className="loading-indicator">
-              <p>Finding social groups near you...</p>
-              {/* Add a spinner component here */}
-            </div>
-          ) : error ? (
-            <div className="error-message">
-              <p>{error}</p>
-              <button onClick={() => alert('Refreshing data...')}>Try Again</button>
-            </div>
-          ) : (
-            <>
-              <div className="map-section">
-                <MapView 
-                  locations={mapLocations} 
-                  center={location}
-                  zoom={11}
-                />
-              </div>
-              
-              <div className="groups-grid">
-                {groups.length > 0 ? (
-                  groups.map(group => (
-                    <SocialGroupCard key={group.id} group={group} />
-                  ))
-                ) : (
-                  <div className="no-results">
-                    <p>No social groups found matching your criteria. Try adjusting your filters.</p>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
+          {renderEvents()}
         </div>
       </div>
     </div>
