@@ -1,37 +1,18 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import PreferenceForm from '../components/PreferenceForm';
 import ReviewSelection from '../components/ReviewSelection';
-import NeighborhoodCard from '../components/NeighborhoodCard';
-import MapView from '../components/MapView';
+import NeighborhoodResults from '../components/NeighborhoodResults';
 import { API } from '../utils/api';
 import '../styles/pages/NeighborhoodFinder.css';
 
 const NeighborhoodFinder = () => {
   const [preferences, setPreferences] = useState(null);
-  const [neighborhoods, setNeighborhoods] = useState([]);
+  const [recommendations, setRecommendations] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
-  const [mapLocations, setMapLocations] = useState([]);
   const [timelineData, setTimelineData] = useState(null);
   const [currentStep, setCurrentStep] = useState('form'); // 'form', 'review', or 'results'
-  const [reviewPreferences, setReviewPreferences] = useState(null);
-
-  // Price ranges for each user category in INR
-  const categoryPriceRanges = {
-    budget: { min: 10000, max: 20000 },
-    moderate: { min: 20000, max: 40000 },
-    comfort: { min: 40000, max: 60000 },
-    premium: { min: 60000, max: 80000 },
-    luxury: { min: 80000, max: 150000 }
-  };
-
-  // Travel mode speeds in km/h (approximate)
-  const travelModeSpeeds = {
-    walking: 5,
-    bicycling: 15,
-    transit: 25,
-    driving: 40
-  };
+  const [formData, setFormData] = useState(null);
 
   // Load user preferences from backend when component mounts
   useEffect(() => {
@@ -50,39 +31,19 @@ const NeighborhoodFinder = () => {
     loadUserPreferences();
   }, []);
 
-  const fetchNeighborhoods = useCallback(async () => {
-    if (!preferences) return;
+  const handlePreferenceSubmit = (data) => {
+    console.log('Form submitted with data:', data);
+    setFormData(data);
     
-    setLoading(true);
-    setError(null);
-    
-    try {
-      // Make API call to get neighborhood recommendations
-      const data = await API.neighborhoods.search(preferences);
-      setNeighborhoods(data.neighborhoods || []);
-      
-      // Prepare map locations from neighborhoods
-      const locations = data.neighborhoods.map(n => ({
-        latitude: n.location.lat,
-        longitude: n.location.lng,
-        name: n.name,
-        description: n.description
-      }));
-      
-      setMapLocations(locations);
-      setCurrentStep('results');
-    } catch (error) {
-      console.error('Error fetching neighborhoods:', error);
-      setError('Failed to fetch neighborhood recommendations. Please try again.');
-    } finally {
-      setLoading(false);
+    // If recommendations are already included in the data
+    if (data.recommendations) {
+      setRecommendations(data.recommendations);
+      setPreferences(data.preferences);
+      setCurrentStep('review');
+    } else {
+      setPreferences(data);
+      setCurrentStep('review');
     }
-  }, [preferences]);
-
-  const handlePreferenceSubmit = (formData) => {
-    console.log('Form submitted with data:', formData);
-    setReviewPreferences(formData);
-    setCurrentStep('review');
   };
 
   const handleTimelineData = (data) => {
@@ -94,8 +55,11 @@ const NeighborhoodFinder = () => {
   };
 
   const handleReviewConfirm = () => {
-    setPreferences(reviewPreferences);
-    fetchNeighborhoods();
+    setCurrentStep('results');
+  };
+
+  const handleResultsBack = () => {
+    setCurrentStep('review');
   };
 
   // Render the current step
@@ -111,47 +75,19 @@ const NeighborhoodFinder = () => {
       case 'review':
         return (
           <ReviewSelection 
-            preferences={reviewPreferences} 
+            preferences={formData.preferences || preferences} 
+            recommendations={recommendations}
             onConfirm={handleReviewConfirm} 
             onBack={handleReviewBack} 
           />
         );
       case 'results':
         return (
-          <div className="results-container">
-            {loading ? (
-              <div className="loading-container">
-                <div className="loader"></div>
-                <p>Finding the perfect neighborhoods for you...</p>
-              </div>
-            ) : error ? (
-              <div className="error-container">
-                <h3>Error</h3>
-                <p>{error}</p>
-                <button onClick={() => setCurrentStep('review')}>Go Back</button>
-              </div>
-            ) : (
-              <>
-                <div className="map-container">
-                  <MapView locations={mapLocations} />
-                </div>
-                <div className="neighborhoods-list">
-                  <h2>Recommended Neighborhoods</h2>
-                  {neighborhoods.length > 0 ? (
-                    neighborhoods.map((neighborhood, index) => (
-                      <NeighborhoodCard 
-                        key={index} 
-                        neighborhood={neighborhood} 
-                        userCategory={preferences.userCategory}
-                      />
-                    ))
-                  ) : (
-                    <p>No neighborhoods found matching your criteria.</p>
-                  )}
-                </div>
-              </>
-            )}
-          </div>
+          <NeighborhoodResults
+            recommendations={recommendations}
+            preferences={formData.preferences || preferences}
+            onBack={handleResultsBack}
+          />
         );
       default:
         return <div>Unknown step</div>;

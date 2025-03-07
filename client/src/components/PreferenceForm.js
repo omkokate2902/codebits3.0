@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { API } from '../utils/api';
 import '../styles/components/PreferenceForm.css';
-import { savePreferences } from '../services/api';
+import { savePreferences, getHousingRecommendations } from '../services/api';
 
 const PreferenceForm = ({ onSubmit, onTimelineData }) => {
   const fileInputRef = useRef(null);
@@ -13,6 +13,8 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
   const [addressMarker, setAddressMarker] = useState(null);
   const [commuteCircle, setCommuteCircle] = useState(null);
   const [geocoder, setGeocoder] = useState(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
   const [preferences, setPreferences] = useState({
     userCategory: 'moderate', // default category
     commute: {
@@ -40,6 +42,7 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
   // State for drag and drop
   const [draggedItem, setDraggedItem] = useState(null);
   const [priorityItems, setPriorityItems] = useState([]);
+  const [prioritizedMustHaves, setPrioritizedMustHaves] = useState([]);
   
   const travelModes = [
     { id: 'walking', label: 'Walking', icon: '🚶', maxDistance: 10 },
@@ -373,15 +376,30 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
     formData.append('file', selectedFile);
 
     try {
-      // Use our API utility instead of XMLHttpRequest
+      console.log('Uploading file:', selectedFile.name);
+      
+      // Simulate progress for better UX
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return prev;
+          }
+          return prev + 10;
+        });
+      }, 500);
+      
+      // Use our API utility to upload the file
       const response = await API.user.uploadFile(formData);
       
+      clearInterval(progressInterval);
+      setUploadProgress(100);
       setUploadStatus('success');
       console.log('Upload successful:', response);
       
       // If the server returns timeline data, pass it to the parent component
-      if (response.timelineData && onTimelineData) {
-        onTimelineData(response.timelineData);
+      if (response.data && onTimelineData) {
+        onTimelineData(response.data);
       }
       
       // If the server suggests a user category, update it
@@ -392,66 +410,69 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
         }));
       }
     } catch (error) {
-      setUploadStatus('error');
       console.error('Upload failed:', error);
+      setUploadStatus('error');
+      
+      // Show a more specific error message
+      if (error.message) {
+        alert(`Upload failed: ${error.message}`);
+      } else {
+        alert('Upload failed. Please try again.');
+      }
     }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validate that work address is provided if commute is important
-    if (preferences.commute.workAddress && !preferences.commute.coordinates) {
-      alert('Please enter a valid work address and click "Locate" to set your commute preferences.');
-      return;
-    }
-    
-    // Count selected lifestyle preferences
-    const selectedLifestyleCount = 
-      preferences.lifestylePreferences.length + 
-      Object.keys(preferences.mustHaves).length +
-      preferences.customLifestyles.filter(item => item.value).length;
-    
-    // Validate at least 3 lifestyle preferences are selected
-    if (selectedLifestyleCount < 3) {
-      alert('Please select at least 3 lifestyle preferences.');
-      return;
-    }
-    
     try {
-      // Prepare the final data to be sent
+      setLoading(true);
+      setError(null);
+      
+      // Count selected lifestyle preferences
+      const lifestyleCount = Object.values(preferences.lifestylePreferences)
+        .filter(Boolean).length + (preferences.customLifestyles?.length || 0);
+      
+      // Validate at least 3 lifestyle preferences are selected
+      if (lifestyleCount < 3) {
+        setError('Please select at least 3 lifestyle preferences');
+        setLoading(false);
+        return;
+      }
+      
+      // Format must-haves with priorities
       const finalPreferences = {
         ...preferences,
-        // Format must-haves as an array of objects with name and priority
-        prioritizedMustHaves: priorityItems.map((item, index) => ({
-          name: item.name,
+        prioritizedMustHaves: prioritizedMustHaves.map((item, index) => ({
+          name: item,
           priority: index + 1
-        })),
-        // Convert customLifestyles array to object for consistency
-        customLifestylePreferences: preferences.customLifestyles.reduce((acc, item) => {
-          if (item.value) {
-            acc[item.name.toLowerCase().replace(/\s+/g, '_')] = true;
-          }
-          return acc;
-        }, {})
+        }))
       };
       
-      // Log the data being sent to the backend
-      console.log('Sending preferences to backend:', finalPreferences);
+      console.log('Submitting preferences:', finalPreferences);
       
-      // Save preferences to backend using the API service
-      await savePreferences(finalPreferences);
+      // Save preferences to backend
+      const saveResponse = await savePreferences(finalPreferences);
+      console.log('Preferences saved:', saveResponse);
       
-      // Show success message to user
-      alert('Your preferences have been saved successfully!');
+      // Get housing recommendations
+      const recommendationsResponse = await getHousingRecommendations(finalPreferences);
+      console.log('Recommendations received:', recommendationsResponse);
       
-      // Pass the preferences to the parent component
-      onSubmit(finalPreferences);
+      if (recommendationsResponse.success) {
+        // Pass both preferences and recommendations to the parent component
+        onSubmit({
+          preferences: finalPreferences,
+          recommendations: recommendationsResponse.recommendations
+        });
+      } else {
+        throw new Error(recommendationsResponse.error || 'Failed to get recommendations');
+      }
     } catch (error) {
-      console.error('Error saving preferences:', error);
-      
-      // Show error message to user
-      alert(`Error saving preferences: ${error.message || 'Unknown error occurred. Please try again.'}`);
+      console.error('Error during form submission:', error);
+      setError(error.message || 'An error occurred while processing your request');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -587,6 +608,9 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
     items.sort((a, b) => a.priority - b.priority);
     
     setPriorityItems(items);
+    
+    // Update prioritizedMustHaves array
+    setPrioritizedMustHaves(items.map(item => item.name));
   }, [preferences.mustHaves]);
   
   // Handle drag start
@@ -625,6 +649,9 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
       
       setPriorityItems(updatedItems);
       
+      // Update prioritizedMustHaves
+      setPrioritizedMustHaves(updatedItems.map(item => item.name));
+      
       // Update preferences.mustHaves
       const newMustHaves = {};
       updatedItems.forEach(item => {
@@ -652,6 +679,9 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
     const newItems = [...priorityItems, newItem];
     setPriorityItems(newItems);
     
+    // Update prioritizedMustHaves
+    setPrioritizedMustHaves([...prioritizedMustHaves, item]);
+    
     // Update preferences.mustHaves
     const newMustHaves = { ...preferences.mustHaves };
     newMustHaves[item] = nextPriority;
@@ -673,6 +703,9 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
     }));
     
     setPriorityItems(updatedItems);
+    
+    // Update prioritizedMustHaves
+    setPrioritizedMustHaves(updatedItems.map(item => item.name));
     
     // Update preferences.mustHaves
     const newMustHaves = {};
@@ -727,7 +760,9 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
                 style={{ width: `${uploadProgress}%` }}
               ></div>
             </div>
-            <span className="progress-text">{uploadProgress}% Uploaded</span>
+            <span className="progress-text">
+              {uploadProgress < 100 ? `${uploadProgress}% Uploaded` : 'Processing file...'}
+            </span>
           </div>
         )}
         
@@ -971,7 +1006,26 @@ const PreferenceForm = ({ onSubmit, onTimelineData }) => {
       </div>
 
       <div className="form-actions">
-        <button type="submit" className="submit-btn">Find My Perfect Neighborhood</button>
+        {error && (
+          <div className="error-message">
+            <span className="error-icon">⚠️</span>
+            <span>{error}</span>
+          </div>
+        )}
+        <button 
+          type="submit" 
+          className={`submit-btn ${loading ? 'loading' : ''}`}
+          disabled={loading}
+        >
+          {loading ? (
+            <>
+              <span className="spinner"></span>
+              Finding Your Perfect Neighborhood...
+            </>
+          ) : (
+            'Find My Perfect Neighborhood'
+          )}
+        </button>
       </div>
     </form>
   );
