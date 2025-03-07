@@ -58,15 +58,13 @@ const SocialConnector = () => {
         console.log('Sending user data with event request:', userData);
       }
       
-      // Make the actual API call to fetch events - using GET as per backend route
-      console.log('Fetching events from API...');
+      // Make the actual API call to fetch events
       const response = await fetch('http://localhost:3000/social/events', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': user ? `Bearer ${user.token}` : ''
         }
-        // Note: GET requests don't have a body
       });
       
       if (!response.ok) {
@@ -76,27 +74,8 @@ const SocialConnector = () => {
       const data = await response.json();
       console.log('Events received from API:', data);
       
-      // Extract events from the response
-      const eventsData = data.events || [];
-      
-      // Parse JSON string if needed (depending on how your backend returns data)
-      let events = [];
-      try {
-        // If the backend returns a JSON string instead of parsed JSON
-        if (typeof eventsData === 'string') {
-          events = JSON.parse(eventsData).events || [];
-        } else {
-          events = eventsData;
-        }
-      } catch (e) {
-        console.error('Error parsing events data:', e);
-        events = [];
-      }
-      
-      console.log('Parsed events:', events);
-      
       // Filter events based on user preferences if available
-      let filteredEvents = [...events];
+      let filteredEvents = [...data];
       
       if (userData.preferences && userData.preferences.lifestylePreferences) {
         // Map lifestyle preferences to event categories
@@ -128,10 +107,10 @@ const SocialConnector = () => {
           // Sort events to prioritize those matching user preferences
           filteredEvents.sort((a, b) => {
             const aMatches = relevantCategories.some(cat => 
-              a.category && a.category.toLowerCase().includes(cat.toLowerCase())
+              a.category.toLowerCase().includes(cat.toLowerCase())
             );
             const bMatches = relevantCategories.some(cat => 
-              b.category && b.category.toLowerCase().includes(cat.toLowerCase())
+              b.category.toLowerCase().includes(cat.toLowerCase())
             );
             
             if (aMatches && !bMatches) return -1;
@@ -144,7 +123,7 @@ const SocialConnector = () => {
       // Apply filters from UI
       if (filters.category !== 'all') {
         filteredEvents = filteredEvents.filter(event => 
-          event.category && event.category.toLowerCase() === filters.category.toLowerCase()
+          event.category.toLowerCase() === filters.category.toLowerCase()
         );
       }
       
@@ -429,42 +408,32 @@ const SocialConnector = () => {
         {filteredEvents.length > 0 ? (
           filteredEvents.map((event, index) => (
             <div key={index} className="event-card">
-              <div className="event-category" style={{ backgroundColor: getCategoryColor(event.category || 'Other') }}>
-                {event.category || 'Other'}
+              <div className="event-category" style={{ backgroundColor: getCategoryColor(event.category) }}>
+                {event.category}
               </div>
               <div className="event-content">
-                <h3 className="event-name">{event.name || 'Unnamed Event'}</h3>
-                {event.date && (
-                  <div className="event-date">
-                    <i className="event-icon">📅</i>
-                    {formatDate(event.date)}
-                  </div>
-                )}
-                {event.location && (
-                  <div className="event-location">
-                    <i className="event-icon">📍</i>
-                    {event.location}
-                  </div>
-                )}
-                {event.ticket_details && event.ticket_details.price && (
-                  <div className="event-price">
-                    <i className="event-icon">💰</i>
-                    {event.ticket_details.price}
-                  </div>
-                )}
+                <h3 className="event-name">{event.name}</h3>
+                <div className="event-date">
+                  <i className="event-icon">📅</i>
+                  {formatDate(event.date)}
+                </div>
+                <div className="event-location">
+                  <i className="event-icon">📍</i>
+                  {event.location}
+                </div>
+                <div className="event-price">
+                  <i className="event-icon">💰</i>
+                  {event.ticket_details.price}
+                </div>
                 <div className="event-actions">
-                  {event.ticket_details && event.ticket_details.booking_link ? (
-                    <a 
-                      href={event.ticket_details.booking_link} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="book-btn"
-                    >
-                      Book Tickets
-                    </a>
-                  ) : (
-                    <button className="book-btn" disabled>Tickets Unavailable</button>
-                  )}
+                  <a 
+                    href={event.ticket_details.booking_link} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="book-btn"
+                  >
+                    Book Tickets
+                  </a>
                   <button className="save-btn">Save</button>
                 </div>
               </div>

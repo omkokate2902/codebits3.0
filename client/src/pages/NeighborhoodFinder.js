@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback, useContext } from 'react';
 import PreferenceForm from '../components/PreferenceForm';
 import ReviewSelection from '../components/ReviewSelection';
 import NeighborhoodResults from '../components/NeighborhoodResults';
+import GoogleLogin from '../components/GoogleLogin';
 import { API } from '../utils/api';
 import '../styles/pages/NeighborhoodFinder.css';
 import { AuthContext } from '../context/AuthContext';
@@ -30,8 +31,10 @@ const NeighborhoodFinder = () => {
       }
     };
     
-    loadUserPreferences();
-  }, []);
+    if (user) {
+      loadUserPreferences();
+    }
+  }, [user]);
 
   const handlePreferenceSubmit = (data) => {
     console.log('Form submitted with data:', data);
@@ -64,8 +67,35 @@ const NeighborhoodFinder = () => {
     setCurrentStep('review');
   };
 
+  // Render the login section if user is not logged in
+  const renderLoginSection = () => {
+    return (
+      <div className="login-required-section">
+        <h2>Sign In Required</h2>
+        <p>Please sign in with your Google account to find your perfect neighborhood. We use your preferences to provide personalized recommendations.</p>
+        <div className="login-container">
+          <GoogleLogin />
+        </div>
+        <div className="login-benefits">
+          <h3>Benefits of signing in:</h3>
+          <ul>
+            <li>Save your preferences for future visits</li>
+            <li>Get personalized neighborhood recommendations</li>
+            <li>Upload your timeline data for better insights</li>
+            <li>Connect with local communities in your new neighborhood</li>
+          </ul>
+        </div>
+      </div>
+    );
+  };
+
   // Render the current step
   const renderCurrentStep = () => {
+    // If user is not logged in, show login section
+    if (!user) {
+      return renderLoginSection();
+    }
+
     switch (currentStep) {
       case 'form':
         return (
