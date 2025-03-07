@@ -1,7 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import '../styles/components/ChatBot.css';
 
-const ChatBot = () => {
+// Import the Google Generative AI library
+import { GoogleGenerativeAI } from "@google/generative-ai";
+
+const ChatBot = ({ isDialog = false }) => {
   const [messages, setMessages] = useState([
     { 
       id: 1, 
@@ -12,16 +15,74 @@ const ChatBot = () => {
   ]);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
+  const [chatSession, setChatSession] = useState(null);
   const messagesEndRef = useRef(null);
+  const chatContainerRef = useRef(null);
 
-  // Auto-scroll to bottom of messages
+  // Initialize the Gemini API when component mounts
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    const initializeGeminiAPI = async () => {
+      try {
+        // Initialize the API with your key
+        const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
+        if (!apiKey) {
+          console.error("API key not found. Please set REACT_APP_GEMINI_API_KEY in your environment variables.");
+          return;
+        }
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+        const genAI = new GoogleGenerativeAI(apiKey);
+        
+        // Get the model
+        const model = genAI.getGenerativeModel({
+          model: "gemini-2.0-pro-exp-02-05",
+          systemInstruction: "you are relocate.io A smart relocation assistant that analyzes user preferences (budget, commute time, lifestyle, must-haves vs. compromises) to suggest the best areas or homes for long-term stays. It also provides customized recommendations for essential services (gyms, restaurants, transport routes, social spots) based on their personality and past search behavior and Google Map History."
+        });
+
+        // Configuration for the model
+        const generationConfig = {
+          temperature: 1,
+          topP: 0.95,
+          topK: 64,
+          maxOutputTokens: 8192,
+          responseMimeType: "text/plain",
+        };
+
+        // Start the chat session
+        const session = model.startChat({
+          generationConfig,
+          history: [
+            {
+              role: "user",
+              parts: [{ text: "Hi, I'm looking for relocation assistance." }]
+            },
+            {
+              role: "model",
+              parts: [{ text: "Hi there! I'm your relocation assistant. How can I help you today? To give you the best recommendations, could you share some details about your preferences such as budget, commute time, lifestyle, and any must-haves for your new location?" }]
+            }
+          ]
+        });
+
+        setChatSession(session);
+      } catch (error) {
+        console.error("Error initializing Gemini API:", error);
+      }
+    };
+
+    initializeGeminiAPI();
+  }, []);
+
+  // Scroll chat container to bottom when messages change
+  useEffect(() => {
+    if (chatContainerRef.current) {
+      const scrollOptions = {
+        top: chatContainerRef.current.scrollHeight,
+        behavior: 'smooth'
+      };
+      
+      // Only scroll the container itself, not the whole page
+      chatContainerRef.current.scrollTo(scrollOptions);
+    }
+  }, [messages]);
 
   const handleInputChange = (e) => {
     setInputText(e.target.value);
@@ -30,7 +91,7 @@ const ChatBot = () => {
   const handleSendMessage = async (e) => {
     e.preventDefault();
     
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || !chatSession) return;
     
     // Add user message
     const userMessage = {
@@ -45,22 +106,15 @@ const ChatBot = () => {
     setIsTyping(true);
     
     try {
-      // Send message to backend
-      const response = await fetch('http://localhost:3000/bot/message', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ message: inputText }),
-      });
-      
-      const data = await response.json();
+      // Send message to Gemini API
+      const result = await chatSession.sendMessage(inputText);
+      const botResponse = result.response.text();
       
       // Add bot response after a small delay to simulate typing
       setTimeout(() => {
         const botMessage = {
           id: messages.length + 2,
-          text: data.response || "I'm sorry, I couldn't process that request.",
+          text: botResponse || "I'm sorry, I couldn't process that request.",
           sender: 'bot',
           timestamp: new Date()
         };
@@ -70,7 +124,7 @@ const ChatBot = () => {
       }, 1000);
       
     } catch (error) {
-      console.error('Error sending message to bot:', error);
+      console.error('Error communicating with Gemini API:', error);
       
       // Add error message
       setTimeout(() => {
@@ -93,13 +147,13 @@ const ChatBot = () => {
   };
 
   return (
-    <div className="chatbot-container">
+    <div className={`chatbot-container ${isDialog ? 'dialog-mode' : ''}`}>
       <div className="chatbot-header">
         <h3>Relocation Assistant</h3>
         <p>Ask me anything about your relocation!</p>
       </div>
       
-      <div className="chatbot-messages">
+      <div className="chatbot-messages" ref={chatContainerRef}>
         {messages.map(message => (
           <div 
             key={message.id} 
@@ -121,8 +175,6 @@ const ChatBot = () => {
             </div>
           </div>
         )}
-        
-        <div ref={messagesEndRef} />
       </div>
       
       <form className="chatbot-input" onSubmit={handleSendMessage}>
@@ -133,7 +185,7 @@ const ChatBot = () => {
           placeholder="Type your message here..."
           disabled={isTyping}
         />
-        <button type="submit" disabled={!inputText.trim() || isTyping}>
+        <button type="submit" disabled={!inputText.trim() || isTyping || !chatSession}>
           Send
         </button>
       </form>
@@ -141,13 +193,13 @@ const ChatBot = () => {
       <div className="chatbot-suggestions">
         <p>Suggested questions:</p>
         <div className="suggestion-buttons">
-          <button onClick={() => setInputText("What should I know about this neighborhood?")}>
-            About this neighborhood
+          <button onClick={() => setInputText("What should I know about moving to San Francisco?")}>
+            Moving to San Francisco
           </button>
           <button onClick={() => setInputText("What items should I buy for my new home?")}>
             Moving essentials
           </button>
-          <button onClick={() => setInputText("Where can I find social groups nearby?")}>
+          <button onClick={() => setInputText("Where can I find social groups for expats?")}>
             Social groups
           </button>
         </div>
@@ -156,4 +208,4 @@ const ChatBot = () => {
   );
 };
 
-export default ChatBot; 
+export default ChatBot;
