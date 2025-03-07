@@ -19,11 +19,18 @@ export const apiCall = async (endpoint, options = {}) => {
   const fetchOptions = {
     ...defaultOptions,
     ...options,
-    // For FormData, don't set any headers to let the browser set the correct Content-Type with boundary
-    headers: isFormData ? {} : {
+    // For FormData, don't set Content-Type header to let the browser set it with boundary
+    headers: isFormData ? {
+      // Keep any other headers except Content-Type
+      ...Object.entries(options.headers || {})
+        .filter(([key]) => key.toLowerCase() !== 'content-type')
+        .reduce((acc, [key, value]) => ({ ...acc, [key]: value }), {})
+    } : {
       ...defaultOptions.headers,
       ...options.headers,
     },
+    // Always include credentials
+    credentials: 'include',
   };
 
   try {

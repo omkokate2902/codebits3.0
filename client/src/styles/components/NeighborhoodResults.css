@@ -1,0 +1,67 @@
+.results-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 30px 20px;
+}
+
+.results-header {
+  text-align: center;
+  margin-bottom: 40px;
+}
+
+.results-header h2 {
+  font-size: 2rem;
+  color: #333;
+  margin-bottom: 10px;
+}
+
+.results-header p {
+  color: #666;
+  font-size: 1.1rem;
+  margin-bottom: 20px;
+}
+
+.results-header .back-btn {
+  background-color: #f8f9fa;
+  color: #4a6fa5;
+  border: 1px solid #4a6fa5;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.results-header .back-btn:hover {
+  background-color: #e9ecef;
+}
+
+.map-section, .neighborhoods-section {
+  margin-bottom: 40px;
+}
+
+.map-section h3, .neighborhoods-section h3 {
+  font-size: 1.5rem;
+  color: #333;
+  margin-bottom: 20px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.neighborhoods-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 20px;
+}
+
+@media (min-width: 768px) {
+  .neighborhoods-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (min-width: 1024px) {
+  .neighborhoods-list {
+    grid-template-columns: repeat(3, 1fr);
+  }
+} 

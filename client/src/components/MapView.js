@@ -1,118 +1,116 @@
-import React, { useEffect, useRef, useCallback } from 'react';
+import React, { useEffect, useRef } from 'react';
 import '../styles/components/MapView.css';
 
-const MapView = ({ locations, center, zoom = 12 }) => {
+const MapView = ({ locations }) => {
   const mapRef = useRef(null);
-  const mapInstanceRef = useRef(null);
-  const markersRef = useRef([]);
+  const mapInstance = useRef(null);
+  const markers = useRef([]);
 
-  const addMarkers = useCallback(() => {
-    if (!mapInstanceRef.current || !locations) return;
-
-    const bounds = new window.google.maps.LatLngBounds();
-
-    locations.forEach((location, index) => {
-      const position = {
-        lat: location.latitude,
-        lng: location.longitude
-      };
-
-      const marker = new window.google.maps.Marker({
-        position,
-        map: mapInstanceRef.current,
-        title: location.name,
-        animation: window.google.maps.Animation.DROP,
-        label: location.label || (index + 1).toString()
+  useEffect(() => {
+    // Initialize map if Google Maps API is loaded
+    if (window.google && mapRef.current && !mapInstance.current) {
+      // Default to a central location if no locations provided
+      const defaultCenter = { lat: 17.7197035, lng: 73.3987688 };
+      
+      // Create the map
+      mapInstance.current = new window.google.maps.Map(mapRef.current, {
+        center: defaultCenter,
+        zoom: 12,
+        mapTypeControl: true,
+        streetViewControl: false,
+        fullscreenControl: true,
+        styles: [
+          {
+            featureType: 'poi',
+            elementType: 'labels',
+            stylers: [{ visibility: 'off' }]
+          }
+        ]
       });
-
-      // Add info window
-      if (location.description) {
-        const infoWindow = new window.google.maps.InfoWindow({
-          content: `
-            <div class="info-window">
-              <h3>${location.name}</h3>
-              <p>${location.description}</p>
-              ${location.address ? `<p>${location.address}</p>` : ''}
-            </div>
-          `
-        });
-
-        marker.addListener('click', () => {
-          infoWindow.open(mapInstanceRef.current, marker);
+    }
+    
+    // Add markers when locations change
+    if (window.google && mapInstance.current && locations && locations.length > 0) {
+      // Clear existing markers
+      markers.current.forEach(marker => marker.setMap(null));
+      markers.current = [];
+      
+      // Create bounds object to fit all markers
+      const bounds = new window.google.maps.LatLngBounds();
+      
+      // Add new markers
+      locations.forEach((location, index) => {
+        if (location.coordinates) {
+          const position = {
+            lat: location.coordinates.lat,
+            lng: location.coordinates.lng
+          };
+          
+          // Create marker
+          const marker = new window.google.maps.Marker({
+            position,
+            map: mapInstance.current,
+            title: location.name,
+            label: {
+              text: (index + 1).toString(),
+              color: 'white'
+            },
+            animation: window.google.maps.Animation.DROP
+          });
+          
+          // Create info window
+          const infoWindow = new window.google.maps.InfoWindow({
+            content: `
+              <div class="map-info-window">
+                <h3>${location.name}</h3>
+                <p>${location.city}, ${location.state}</p>
+                <p>${location.averageRent}</p>
+              </div>
+            `
+          });
+          
+          // Add click listener to open info window
+          marker.addListener('click', () => {
+            infoWindow.open(mapInstance.current, marker);
+          });
+          
+          // Add marker to array
+          markers.current.push(marker);
+          
+          // Extend bounds to include this marker
+          bounds.extend(position);
+        }
+      });
+      
+      // Fit map to bounds if we have markers
+      if (markers.current.length > 0) {
+        mapInstance.current.fitBounds(bounds);
+        
+        // Don't zoom in too far
+        const listener = window.google.maps.event.addListener(mapInstance.current, 'idle', () => {
+          if (mapInstance.current.getZoom() > 15) {
+            mapInstance.current.setZoom(15);
+          }
+          window.google.maps.event.removeListener(listener);
         });
       }
-
-      markersRef.current.push(marker);
-      bounds.extend(position);
-    });
-
-    // Fit map to bounds if there are multiple locations
-    if (locations.length > 1) {
-      mapInstanceRef.current.fitBounds(bounds);
     }
   }, [locations]);
 
-  useEffect(() => {
-    // Load Google Maps API script
-    const loadGoogleMapsAPI = () => {
-      const script = document.createElement('script');
-      script.src = `https://maps.googleapis.com/maps/api/js?key=${process.env.REACT_APP_GOOGLE_MAPS_API_KEY}&libraries=places`;
-      script.async = true;
-      script.defer = true;
-      script.onload = initializeMap;
-      document.head.appendChild(script);
-    };
-
-    // Initialize map
-    const initializeMap = () => {
-      if (!window.google || !mapRef.current) return;
-
-      const mapOptions = {
-        center: center || { lat: 37.7749, lng: -122.4194 }, // Default to San Francisco
-        zoom: zoom,
-        mapTypeControl: true,
-        streetViewControl: true,
-        fullscreenControl: true
-      };
-
-      mapInstanceRef.current = new window.google.maps.Map(mapRef.current, mapOptions);
-      
-      // Add markers if locations are provided
-      if (locations && locations.length > 0) {
-        addMarkers();
-      }
-    };
-
-    // Check if Google Maps API is already loaded
-    if (window.google && window.google.maps) {
-      initializeMap();
-    } else {
-      loadGoogleMapsAPI();
-    }
-
-    return () => {
-      // Clear markers when component unmounts
-      if (markersRef.current.length > 0) {
-        markersRef.current.forEach(marker => marker.setMap(null));
-        markersRef.current = [];
-      }
-    };
-  }, [center, zoom, locations, addMarkers]);
-
-  // Add markers when locations change
-  useEffect(() => {
-    if (mapInstanceRef.current && locations && locations.length > 0) {
-      // Clear existing markers
-      markersRef.current.forEach(marker => marker.setMap(null));
-      markersRef.current = [];
-      
-      addMarkers();
-    }
-  }, [locations, addMarkers]);
+  // If no locations, show a message
+  if (!locations || locations.length === 0) {
+    return (
+      <div className="map-container empty">
+        <div className="map-placeholder">
+          <p>No locations to display</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="map-container">
-      <div ref={mapRef} className="google-map"></div>
+      <div ref={mapRef} className="map"></div>
     </div>
   );
 };

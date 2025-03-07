@@ -182,6 +182,116 @@
   padding: 40px;
 }
 
+/* Recommendations Preview */
+.recommendations-preview {
+  margin-top: 30px;
+}
+
+.recommendations-preview h3 {
+  color: #4a6fa5;
+  font-size: 1.4rem;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+.recommendations-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.neighborhood-card {
+  background-color: #fff;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.neighborhood-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.15);
+}
+
+.neighborhood-header {
+  background-color: #4a6fa5;
+  color: white;
+  padding: 15px;
+}
+
+.neighborhood-header h4 {
+  margin: 0;
+  font-size: 1.2rem;
+}
+
+.neighborhood-location {
+  font-size: 0.9rem;
+  opacity: 0.9;
+  margin-top: 5px;
+}
+
+.neighborhood-details {
+  padding: 15px;
+}
+
+.neighborhood-rent {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #4a7c59;
+  margin-bottom: 10px;
+}
+
+.neighborhood-scores {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 15px;
+}
+
+.score {
+  display: flex;
+  align-items: center;
+  font-size: 0.9rem;
+}
+
+.score i {
+  margin-right: 5px;
+  color: #4a6fa5;
+}
+
+.neighborhood-description {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  margin-bottom: 15px;
+  color: #555;
+}
+
+.neighborhood-commute, .neighborhood-amenities {
+  font-size: 0.9rem;
+  margin-bottom: 10px;
+  color: #666;
+}
+
+.view-all-button {
+  text-align: center;
+  margin-top: 20px;
+}
+
+.view-all-button button {
+  background-color: #4a6fa5;
+  color: white;
+  border: none;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+}
+
+.view-all-button button:hover {
+  background-color: #3d5d8a;
+}
+
 /* Responsive adjustments */
 @media (max-width: 768px) {
   .preferences-summary {
@@ -211,5 +321,13 @@
   
   .review-actions button {
     padding: 10px 16px;
+  }
+  
+  .recommendations-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .neighborhood-card {
+    max-width: 100%;
   }
 } 

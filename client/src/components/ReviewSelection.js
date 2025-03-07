@@ -1,30 +1,8 @@
-import React, { useState, useEffect } from 'react';
-import { API } from '../utils/api';
+import React, { useState } from 'react';
 import '../styles/components/ReviewSelection.css';
 
-const ReviewSelection = ({ preferences, onConfirm, onBack }) => {
-  const [loading, setLoading] = useState(true);
-  const [persona, setPersona] = useState('');
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    // Fetch the user persona from the backend
-    const fetchPersona = async () => {
-      try {
-        setLoading(true);
-        // Make a GET request to get the persona
-        const response = await API.user.getPersona(preferences);
-        setPersona(response.persona);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching persona:', error);
-        setError('Failed to generate your persona. Please try again.');
-        setLoading(false);
-      }
-    };
-
-    fetchPersona();
-  }, [preferences]);
+const ReviewSelection = ({ preferences, recommendations, onConfirm, onBack }) => {
+  const [showRecommendations, setShowRecommendations] = useState(false);
 
   // Format the commute preferences
   const formatCommutePreferences = () => {
@@ -123,47 +101,85 @@ const ReviewSelection = ({ preferences, onConfirm, onBack }) => {
     );
   };
 
-  if (loading) {
-    return (
-      <div className="review-selection loading">
-        <div className="loader"></div>
-        <p>Generating your personalized profile...</p>
-      </div>
-    );
-  }
+  // Display neighborhood recommendations
+  const displayRecommendations = () => {
+    if (!recommendations || recommendations.length === 0) {
+      return (
+        <div className="review-section">
+          <h3>Recommendations</h3>
+          <p>No neighborhood recommendations found.</p>
+        </div>
+      );
+    }
 
-  if (error) {
     return (
-      <div className="review-selection error">
-        <h2>Error</h2>
-        <p>{error}</p>
-        <button onClick={onBack} className="back-btn">Go Back</button>
-      </div>
-    );
-  }
-
-  return (
-    <div className="review-selection">
-      <h2>Review Your Selections</h2>
-      
-      <div className="persona-section">
-        <h3>Your Persona</h3>
-        <div className="persona-text">
-          {persona}
+      <div className="recommendations-preview">
+        <h3>Top Neighborhood Recommendations</h3>
+        <div className="recommendations-grid">
+          {recommendations.slice(0, 3).map((neighborhood, index) => (
+            <div key={index} className="neighborhood-card">
+              <div className="neighborhood-header">
+                <h4>{neighborhood.name}</h4>
+                <div className="neighborhood-location">{neighborhood.city}, {neighborhood.state}</div>
+              </div>
+              <div className="neighborhood-details">
+                <div className="neighborhood-rent">{neighborhood.averageRent}</div>
+                <div className="neighborhood-scores">
+                  <span className="score">
+                    <i className="fas fa-shield-alt"></i> Safety: {neighborhood.safetyScore}/10
+                  </span>
+                  <span className="score">
+                    <i className="fas fa-walking"></i> Walkability: {neighborhood.walkabilityScore}/10
+                  </span>
+                </div>
+                <p className="neighborhood-description">{neighborhood.description}</p>
+                <div className="neighborhood-commute">
+                  <strong>Commute:</strong> {neighborhood.commuteDetails.distance} ({neighborhood.commuteDetails.time} by {neighborhood.commuteDetails.travelMode})
+                </div>
+                <div className="neighborhood-amenities">
+                  <strong>Amenities:</strong> {neighborhood.amenities.join(', ')}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+        <div className="view-all-button">
+          <button onClick={() => onConfirm()}>View All Recommendations</button>
         </div>
       </div>
-      
-      <div className="preferences-summary">
-        {formatCommutePreferences()}
-        {formatLifestylePreferences()}
-        {formatMustHaves()}
-        {formatCustomLifestyles()}
+    );
+  };
+
+  return (
+    <div className="review-container">
+      <div className="review-header">
+        <h2>Review Your Selections</h2>
+        <p>Please review your preferences before we find your perfect neighborhood.</p>
       </div>
       
-      <div className="review-actions">
-        <button onClick={onBack} className="back-btn">Go Back & Edit</button>
-        <button onClick={onConfirm} className="confirm-btn">Find My Perfect Neighborhood</button>
-      </div>
+      {!showRecommendations ? (
+        <>
+          <div className="preferences-summary">
+            {formatCommutePreferences()}
+            {formatLifestylePreferences()}
+            {formatMustHaves()}
+            {formatCustomLifestyles()}
+          </div>
+          
+          <div className="review-actions">
+            <button onClick={onBack} className="back-btn">Go Back & Edit</button>
+            <button onClick={() => setShowRecommendations(true)} className="confirm-btn">Show Recommendations</button>
+          </div>
+        </>
+      ) : (
+        <>
+          {displayRecommendations()}
+          <div className="review-actions">
+            <button onClick={() => setShowRecommendations(false)} className="back-btn">Back to Preferences</button>
+            <button onClick={onConfirm} className="confirm-btn">Find My Perfect Neighborhood</button>
+          </div>
+        </>
+      )}
     </div>
   );
 };

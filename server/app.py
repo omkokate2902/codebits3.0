@@ -8,6 +8,9 @@ from routes.chatbot_routes import chatbot_bp  # Import missing routes
 import os
 from datetime import timedelta
 
+# Create necessary directories
+os.makedirs("uploads", exist_ok=True)
+
 app = Flask(__name__)
 
 # Configure session
@@ -39,15 +42,15 @@ app.register_blueprint(user_routes, url_prefix="/api/user")
 # Register file upload routes
 app.register_blueprint(upload_routes, url_prefix="/api")  # 🔹 Added "/api"
 
-app.register_blueprint(housing_bp)
+# Register housing routes
+app.register_blueprint(housing_bp, url_prefix="/api/housing")
 
-app.register_blueprint(chatbot_bp)  # 🔹 Added chatbot routes
-
+# Register chatbot routes
+app.register_blueprint(chatbot_bp, url_prefix="/api/chatbot")
 
 @app.route("/", methods=["GET"])
 def health_check():
     return jsonify({"message": "API is working!"}), 200
 
 if __name__ == "__main__":
-    os.makedirs("uploads", exist_ok=True)
     app.run(host="0.0.0.0", debug=True, port=3000)

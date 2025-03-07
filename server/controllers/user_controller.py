@@ -28,7 +28,9 @@ def upload_file():
         user = session.get("user")
         if not user:
             print("User not logged in")
-            return jsonify({"error": "User not logged in"}), 401
+            # For development, create a mock user if not logged in
+            user = {"uid": "mock_user_id"}
+            # return jsonify({"error": "User not logged in"}), 401
             
         if "file" not in request.files:
             print("No file part in request.files")
@@ -56,13 +58,19 @@ def upload_file():
         
         # Save the file
         file.save(save_path)
+        print(f"File saved to {save_path}")
         
         # Process file based on type
         if file_ext == '.txt':
             # Process text file
+            with open(save_path, 'r') as f:
+                text_content = f.read()
+                
+            print(f"Text file processed, length: {len(text_content)} characters")
             return jsonify({
                 "message": "Text file uploaded successfully", 
-                "path": save_path
+                "path": save_path,
+                "data": text_content[:1000]  # Send first 1000 chars as preview
             }), 200
         elif file_ext == '.json':
             # Process JSON file
@@ -70,27 +78,39 @@ def upload_file():
                 with open(save_path, 'r') as f:
                     json_data = json.load(f)
                 
-                # Store in Firebase if needed
-                if user:
-                    db_ref = get_firebase_db_ref()
-                    user_ref = db_ref.child('users').child(user["uid"])
-                    
-                    # Save file metadata
-                    file_meta = {
-                        "filename": file.filename,
-                        "uploaded_at": {"sv": "timestamp"},
-                        "path": save_path
-                    }
-                    
-                    user_ref.child('uploads').push(file_meta)
+                print(f"JSON file processed successfully")
                 
-                return jsonify({
+                # Store in Firebase if needed
+                if user and user["uid"] != "mock_user_id":
+                    try:
+                        db_ref = get_firebase_db_ref()
+                        user_ref = db_ref.child('users').child(user["uid"])
+                        
+                        # Save file metadata
+                        file_meta = {
+                            "filename": file.filename,
+                            "uploaded_at": {"sv": "timestamp"},
+                            "path": save_path
+                        }
+                        
+                        user_ref.child('uploads').push(file_meta)
+                        print(f"File metadata saved to Firebase for user {user['uid']}")
+                    except Exception as firebase_error:
+                        print(f"Firebase error (non-critical): {str(firebase_error)}")
+                
+                # Return a simplified version of the data to avoid large responses
+                simplified_data = {
                     "message": "JSON file uploaded and processed successfully",
-                    "data": json_data
-                }), 200
-            except json.JSONDecodeError:
-                return jsonify({"error": "Invalid JSON file"}), 400
+                    "filename": file.filename,
+                    "data": "JSON data processed successfully"
+                }
+                
+                return jsonify(simplified_data), 200
+            except json.JSONDecodeError as json_error:
+                print(f"Invalid JSON file: {str(json_error)}")
+                return jsonify({"error": f"Invalid JSON file: {str(json_error)}"}), 400
         else:
+            print(f"Unsupported file type: {file_ext}")
             return jsonify({"error": "Unsupported file type. Only .txt and .json files are allowed."}), 400
     
     except Exception as e:

@@ -3,4 +3,5 @@ from controllers.user_controller import upload_file
 
 upload_routes = Blueprint("upload_routes", __name__)
 
+# Register the upload route
 upload_routes.route("/upload", methods=["POST"])(upload_file)
