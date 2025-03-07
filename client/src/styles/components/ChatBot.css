@@ -7,15 +7,6 @@
   overflow: hidden;
   height: 600px;
   max-height: 80vh;
-  position: relative;
-}
-
-/* Specific styles for dialog mode */
-.chatbot-container.dialog-mode {
-  height: 100%;
-  max-height: 600px;
-  width: 100%;
-  border-radius: 12px;
 }
 
 .chatbot-header {
@@ -23,9 +14,6 @@
   color: white;
   padding: 1rem 1.5rem;
   text-align: center;
-  position: sticky;
-  top: 0;
-  z-index: 2;
 }
 
 .chatbot-header h3 {
@@ -46,19 +34,6 @@
   flex-direction: column;
   gap: 1rem;
   background-color: #f8f9fa;
-  scroll-behavior: smooth;
-  height: calc(100% - 180px); /* Adjust based on header and input heights */
-}
-
-/* Hide scrollbar for Chrome, Safari and Opera */
-.chatbot-messages::-webkit-scrollbar {
-  display: none;
-}
-
-/* Hide scrollbar for IE, Edge and Firefox */
-.chatbot-messages {
-  -ms-overflow-style: none;  /* IE and Edge */
-  scrollbar-width: none;  /* Firefox */
 }
 
 .message {
@@ -146,9 +121,6 @@
   padding: 1rem;
   border-top: 1px solid var(--light-gray);
   background-color: white;
-  position: sticky;
-  bottom: 0;
-  z-index: 2;
 }
 
 .chatbot-input input {
@@ -189,7 +161,6 @@
 .chatbot-suggestions {
   padding: 1rem;
   border-top: 1px solid var(--light-gray);
-  background-color: white;
 }
 
 .chatbot-suggestions p {
@@ -223,14 +194,7 @@
 /* Responsive styles */
 @media (max-width: 768px) {
   .chatbot-container {
-    height: 100vh;
-    max-height: 100vh;
-    border-radius: 0;
-  }
-
-  .chatbot-container.dialog-mode {
-    height: 100%;
-    max-height: 500px;
+    height: 500px;
   }
   
   .message {
