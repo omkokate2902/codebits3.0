@@ -175,6 +175,225 @@
   margin-right: auto;
 }
 
+/* Business Plans Section */
+.business-plans-section {
+  padding: 4rem 2rem;
+  background-color: #f8fafc;
+  text-align: center;
+}
+
+.business-plans-section h2 {
+  font-size: 2.5rem;
+  color: #1a202c;
+  margin-bottom: 1rem;
+}
+
+.section-description {
+  max-width: 800px;
+  margin: 0 auto 3rem;
+  font-size: 1.2rem;
+  color: #4a5568;
+  line-height: 1.6;
+}
+
+.plans-container {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2rem;
+  margin-bottom: 4rem;
+}
+
+.plan-card {
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+  width: 300px;
+  overflow: hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  position: relative;
+}
+
+.plan-card:hover {
+  transform: translateY(-10px);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+}
+
+.plan-badge {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background-color: #ed8936;
+  color: white;
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-weight: bold;
+  border-bottom-left-radius: 8px;
+}
+
+.plan-header {
+  padding: 2rem;
+  background-color: #2d3748;
+  color: white;
+}
+
+.plan-header h3 {
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.price {
+  font-size: 2.5rem;
+  font-weight: bold;
+}
+
+.price span {
+  font-size: 1rem;
+  font-weight: normal;
+  opacity: 0.8;
+}
+
+.plan-features {
+  padding: 2rem;
+}
+
+.plan-features ul {
+  list-style-type: none;
+  padding: 0;
+  text-align: left;
+}
+
+.plan-features li {
+  padding: 0.8rem 0;
+  border-bottom: 1px solid #edf2f7;
+  position: relative;
+  padding-left: 1.8rem;
+  color: #4a5568;
+}
+
+.plan-features li:before {
+  content: "✓";
+  color: #38b2ac;
+  position: absolute;
+  left: 0;
+  font-weight: bold;
+}
+
+.plan-features li:last-child {
+  border-bottom: none;
+}
+
+.plan-cta {
+  padding: 0 2rem 2rem;
+}
+
+.plan-btn {
+  display: inline-block;
+  width: 100%;
+  padding: 1rem;
+  background-color: #4299e1;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: bold;
+  transition: background-color 0.3s ease;
+}
+
+.plan-btn:hover {
+  background-color: #3182ce;
+}
+
+/* Plan card variations */
+.plan-card.basic .plan-header {
+  background-color: #4a5568;
+}
+
+.plan-card.premium .plan-header {
+  background-color: #3182ce;
+}
+
+.plan-card.featured .plan-header {
+  background-color: #2c5282;
+}
+
+/* Business Benefits */
+.business-benefits {
+  max-width: 1000px;
+  margin: 0 auto 4rem;
+  padding: 2rem;
+  background-color: white;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+}
+
+.business-benefits h3 {
+  font-size: 1.8rem;
+  color: #2d3748;
+  margin-bottom: 2rem;
+}
+
+.benefits-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 2rem;
+}
+
+.benefit-item {
+  text-align: center;
+}
+
+.benefit-icon {
+  font-size: 2.5rem;
+  margin-bottom: 1rem;
+}
+
+.benefit-item h4 {
+  font-size: 1.2rem;
+  color: #2d3748;
+  margin-bottom: 0.5rem;
+}
+
+.benefit-item p {
+  color: #4a5568;
+  line-height: 1.5;
+}
+
+/* Contact Section */
+.contact-section {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 2rem;
+  background-color: #ebf8ff;
+  border-radius: 12px;
+  text-align: center;
+}
+
+.contact-section h3 {
+  font-size: 1.5rem;
+  color: #2b6cb0;
+  margin-bottom: 1rem;
+}
+
+.contact-section p {
+  color: #4a5568;
+  margin-bottom: 1.5rem;
+}
+
+.contact-btn {
+  display: inline-block;
+  padding: 0.8rem 2rem;
+  background-color: #4299e1;
+  color: white;
+  text-decoration: none;
+  border-radius: 6px;
+  font-weight: bold;
+  transition: background-color 0.3s ease;
+}
+
+.contact-btn:hover {
+  background-color: #3182ce;
+}
+
 /* Responsive styles */
 @media (max-width: 992px) {
   .hero-section {
@@ -215,5 +434,27 @@
   
   .auth-section p {
     font-size: 1rem;
+  }
+  
+  .business-plans-section h2 {
+    font-size: 2rem;
+  }
+  
+  .section-description {
+    font-size: 1rem;
+  }
+  
+  .plans-container {
+    flex-direction: column;
+    align-items: center;
+  }
+  
+  .plan-card {
+    width: 100%;
+    max-width: 350px;
+  }
+  
+  .benefits-grid {
+    grid-template-columns: 1fr;
   }
 } 

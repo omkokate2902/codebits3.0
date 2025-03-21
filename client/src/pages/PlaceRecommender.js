@@ -1,253 +1,438 @@
-import React, { useState, useEffect, useContext, useCallback } from 'react';
+import React, { useState, useEffect, useContext, useRef } from 'react';
 import PlaceCard from '../components/PlaceCard';
 import MapView from '../components/MapView';
 import { AuthContext } from '../context/AuthContext';
 import * as userStorage from '../utils/userStorage';
-import { analyzeTimelineData } from '../utils/geminiApi';
+import { generatePlaceRecommendations } from '../utils/geminiApi';
 import '../styles/pages/PlaceRecommender.css';
 
 const PlaceRecommender = () => {
   const { user } = useContext(AuthContext);
+  const mapRef = useRef(null);
+  const geocoderRef = useRef(null);
+  
+  // State variables
+  const [neighborhoods, setNeighborhoods] = useState([]);
+  const [selectedNeighborhood, setSelectedNeighborhood] = useState(null);
   const [places, setPlaces] = useState([]);
+  const [mapLocations, setMapLocations] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isLoadingPlaces, setIsLoadingPlaces] = useState(false);
   const [error, setError] = useState(null);
+  const [userPreferences, setUserPreferences] = useState(null);
+  const [userAnalysis, setUserAnalysis] = useState(null);
   const [filters, setFilters] = useState({
     type: 'all',
     radius: 5,
     priceLevel: 0
   });
-  const [mapLocations, setMapLocations] = useState([]);
-  const [location, setLocation] = useState(null);
-  const [selectedNeighborhood, setSelectedNeighborhood] = useState(null);
-  const [neighborhoods, setNeighborhoods] = useState([]);
-  const [userPreferences, setUserPreferences] = useState(null);
-  const [userAnalysis, setUserAnalysis] = useState(null);
+  const [mapRadius, setMapRadius] = useState(null);
 
-  // Load user data from storage
+  // Initialize Google Maps API and Geocoder
   useEffect(() => {
-    if (user && user.uid) {
-      const preferences = userStorage.getUserPreferences(user.uid);
-      const analysis = userStorage.getUserAnalysis(user.uid);
-      
-      if (preferences) {
-        setUserPreferences(preferences);
-        console.log('Loaded user preferences:', preferences);
-      }
-      
-      if (analysis) {
-        setUserAnalysis(analysis);
-        console.log('Loaded user analysis:', analysis);
-      }
-      
-      // Fetch recommended neighborhoods
-      fetchNeighborhoods();
-    }
-  }, [user]);
-
-    // Get user's current location
-  useEffect(() => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          setLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-        },
-        (error) => {
-          console.error('Error getting location:', error);
-          // Default to San Francisco if location access is denied
-          setLocation({ lat: 37.7749, lng: -122.4194 });
-        }
-      );
-    } else {
-      // Default to San Francisco if geolocation is not supported
-      setLocation({ lat: 37.7749, lng: -122.4194 });
+    // Initialize geocoder if window.google is available
+    if (window.google && !geocoderRef.current) {
+      geocoderRef.current = new window.google.maps.Geocoder();
     }
   }, []);
 
-  // Fetch places when location, filters, or selected neighborhood changes
+  // Load user data and neighborhoods when component mounts
   useEffect(() => {
-    if (location && (selectedNeighborhood || !neighborhoods.length)) {
-      fetchPlaces();
-    }
-  }, [location, filters, selectedNeighborhood]);
-
-  // Fetch recommended neighborhoods
-  const fetchNeighborhoods = useCallback(async () => {
-    try {
-      setLoading(true);
-      
-      // In a real app, this would be an API call to your backend
-      // const response = await fetch('http://localhost:3000/neighborhoods/recommendations', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     'Authorization': `Bearer ${user.token}`
-      //   },
-      //   body: JSON.stringify({ userId: user.uid })
-      // });
-      
-      // const data = await response.json();
-      // setNeighborhoods(data.neighborhoods);
-      
-      // For now, use mock data
-      setTimeout(() => {
-        const mockNeighborhoods = [
-          {
-            id: 1,
-            name: 'Mission District',
-            city: 'San Francisco',
-            state: 'CA',
-            description: 'Vibrant neighborhood with diverse dining options and cultural attractions.',
-            coordinates: { lat: 37.7599, lng: -122.4148 },
-            matchScore: 92
-          },
-          {
-            id: 2,
-            name: 'SoMa',
-            city: 'San Francisco',
-            state: 'CA',
-            description: 'Urban area with tech companies, warehouses, and modern apartment buildings.',
-            coordinates: { lat: 37.7785, lng: -122.3950 },
-            matchScore: 87
-          },
-          {
-            id: 3,
-            name: 'Marina District',
-            city: 'San Francisco',
-            state: 'CA',
-            description: 'Upscale area with waterfront views, boutique shopping, and fitness options.',
-            coordinates: { lat: 37.8030, lng: -122.4378 },
-            matchScore: 85
-          }
-        ];
+    const loadData = async () => {
+      if (user && user.uid) {
+        // Load user preferences and analysis
+        const preferences = userStorage.getUserPreferences(user.uid);
+        const analysis = userStorage.getUserAnalysis(user.uid);
         
-        setNeighborhoods(mockNeighborhoods);
-        
-        // Select the highest matching neighborhood by default
-        if (mockNeighborhoods.length > 0) {
-          const bestMatch = mockNeighborhoods.reduce((prev, current) => 
-            (prev.matchScore > current.matchScore) ? prev : current
-          );
-          setSelectedNeighborhood(bestMatch);
-          
-          // Update location to the selected neighborhood
-          setLocation(bestMatch.coordinates);
+        if (preferences) {
+          setUserPreferences(preferences);
+          console.log('Loaded user preferences:', preferences);
         }
         
-        setLoading(false);
-      }, 1000);
-    } catch (err) {
-      console.error('Error fetching neighborhoods:', err);
-      setError('Failed to fetch neighborhood recommendations.');
+        if (analysis) {
+          setUserAnalysis(analysis);
+          console.log('Loaded user analysis:', analysis);
+        }
+        
+        // Load neighborhoods
+        const storedNeighborhoods = userStorage.getRecommendedNeighborhoods(user.uid);
+        if (storedNeighborhoods && storedNeighborhoods.length > 0) {
+          console.log('Loaded recommended neighborhoods:', storedNeighborhoods);
+          
+          // Ensure all neighborhoods have coordinates
+          const enhancedNeighborhoods = await Promise.all(
+            storedNeighborhoods.map(async neighborhood => {
+              if (!neighborhood.coordinates) {
+                const coords = await geocodeAddress(`${neighborhood.name}, ${neighborhood.city}, ${neighborhood.state}`);
+                return {
+                  ...neighborhood,
+                  coordinates: coords || getCityCoordinates(neighborhood.city)
+                };
+              }
+              return neighborhood;
+            })
+          );
+          
+          setNeighborhoods(enhancedNeighborhoods);
+        } else {
+          setError('Please complete the Neighborhood Finder questionnaire to get personalized neighborhood recommendations.');
+        }
+      }
       setLoading(false);
-    }
+    };
+    
+    loadData();
   }, [user]);
 
-  // Fetch places based on user preferences and selected neighborhood
-  const fetchPlaces = useCallback(async () => {
+  // Geocode an address to get coordinates
+  const geocodeAddress = async (address) => {
+    if (!geocoderRef.current) {
+      console.error('Geocoder not initialized');
+      return null;
+    }
+    
     try {
-      setLoading(true);
-      setError(null);
+      const result = await new Promise((resolve, reject) => {
+        geocoderRef.current.geocode({ address }, (results, status) => {
+          if (status === 'OK' && results && results.length > 0) {
+            resolve(results[0].geometry.location);
+          } else {
+            reject(new Error(`Geocode failed: ${status}`));
+          }
+        });
+      });
       
-      // Determine place types to fetch based on user preferences
-      const placeTypes = determinePreferredPlaceTypes();
-      console.log('Determined place types:', placeTypes);
+      return {
+        lat: result.lat(),
+        lng: result.lng()
+      };
+    } catch (error) {
+      console.error('Error geocoding address:', error);
+      return null;
+    }
+  };
+
+  // Get default coordinates for a city
+  const getCityCoordinates = (city) => {
+    const cityCoordinates = {
+      'New Delhi': { lat: 28.6139, lng: 77.2090 },
+      'Mumbai': { lat: 19.0760, lng: 72.8777 },
+      'Bangalore': { lat: 12.9716, lng: 77.5946 },
+      'Pune': { lat: 18.5204, lng: 73.8567 },
+      'Chennai': { lat: 13.0827, lng: 80.2707 },
+      'Hyderabad': { lat: 17.3850, lng: 78.4867 },
+      'Kolkata': { lat: 22.5726, lng: 88.3639 },
+      'Jaipur': { lat: 26.9124, lng: 75.7873 }
+    };
+    return cityCoordinates[city] || cityCoordinates['New Delhi'];
+  };
+
+  // Handle neighborhood selection
+  const handleNeighborhoodSelect = async (neighborhood) => {
+    console.log('Neighborhood selected:', neighborhood);
+    
+    // Get coordinates for the neighborhood using its name
+    const address = `${neighborhood.name}, ${neighborhood.city}, ${neighborhood.state}`;
+    const coords = await geocodeAddress(address);
+    
+    // Set the neighborhood coordinates
+    neighborhood.coordinates = coords || getCityCoordinates(neighborhood.city);
+    console.log(`Coordinates for ${neighborhood.name}: ${JSON.stringify(neighborhood.coordinates)}`);
+    
+    setSelectedNeighborhood(neighborhood);
+    setIsLoadingPlaces(true);
+    setError(null);
+    
+    // Update map radius based on filters
+    updateMapRadius(filters.radius);
+    
+    try {
+      // Save selected neighborhood to userStorage
+      if (user && user.uid) {
+        userStorage.saveSelectedNeighborhood(user.uid, neighborhood);
+      }
       
-      // In a real app, this would be an API call to your backend
-      // const response = await fetch('http://localhost:3000/places/recommendations', {
-      //   method: 'POST',
-      //   headers: {
-      //     'Content-Type': 'application/json',
-      //     'Authorization': user ? `Bearer ${user.token}` : ''
-      //   },
-      //   body: JSON.stringify({
-      //     location: selectedNeighborhood ? selectedNeighborhood.coordinates : location,
-      //     placeTypes,
-      //     ...filters
-      //   }),
-      // });
+      // Determine place types based on user preferences
+      const priorityPlaceTypes = determinePreferredPlaceTypes();
+      console.log('Priority place types:', priorityPlaceTypes);
       
-      // const data = await response.json();
-      // setPlaces(data.places);
+      // Create prompt for Gemini API
+      const prompt = createPlaceRecommendationPrompt(neighborhood, priorityPlaceTypes, filters);
+      console.log('Created place recommendation prompt');
       
-      // For now, use mock data
-      setTimeout(() => {
-        // Generate mock places based on user preferences
-        const mockPlaces = generateMockPlaces(placeTypes);
-        setPlaces(mockPlaces);
+      // Call Gemini API to get place recommendations
+      console.log('Calling Gemini API for place recommendations...');
+      const recommendedPlaces = await generatePlaceRecommendations(prompt);
+      console.log('Received recommended places:', recommendedPlaces);
+      
+      // Process and set the places
+      if (recommendedPlaces && recommendedPlaces.length > 0) {
+        // Ensure all places have coordinates
+        const placesWithCoordinates = await Promise.all(
+          recommendedPlaces.map(async (place) => {
+            // If coordinates are missing or invalid, try to geocode the address
+            if (!place.coordinates || !place.coordinates.lat || !place.coordinates.lng) {
+              const coords = await geocodeAddress(place.address);
+              if (coords) {
+                return { ...place, coordinates: coords };
+              }
+              
+              // If geocoding fails, generate coordinates near the neighborhood
+              return { 
+                ...place, 
+                coordinates: generateNearbyCoordinates(
+                  neighborhood.coordinates, 
+                  place.distance || Math.random() * filters.radius
+                )
+              };
+            }
+            return place;
+          })
+        );
         
-        // Format data for map
-        const locations = mockPlaces.map(place => ({
+        setPlaces(placesWithCoordinates);
+        
+        // Update map locations
+        const mapPoints = placesWithCoordinates.map(place => ({
+          id: place.id,
           name: place.name,
-          description: `${place.name} - ${place.type}`,
-          address: place.address,
-          latitude: place.latitude,
-          longitude: place.longitude
+          coordinates: place.coordinates,
+          category: place.category,
+          description: place.description,
+          address: place.address
         }));
         
-        setMapLocations(locations);
-        setLoading(false);
-      }, 1500);
+        // Add the neighborhood as a special point
+        mapPoints.unshift({
+          id: 'neighborhood',
+          name: neighborhood.name,
+          coordinates: neighborhood.coordinates,
+          category: 'neighborhood',
+          description: neighborhood.description,
+          address: `${neighborhood.name}, ${neighborhood.city}, ${neighborhood.state}`
+        });
+        
+        setMapLocations(mapPoints);
+      } else {
+        setPlaces([]);
+        setMapLocations([{
+          id: 'neighborhood',
+          name: neighborhood.name,
+          coordinates: neighborhood.coordinates,
+          category: 'neighborhood',
+          description: neighborhood.description,
+          address: `${neighborhood.name}, ${neighborhood.city}, ${neighborhood.state}`
+        }]);
+        setError('No places found for the selected criteria.');
+      }
     } catch (err) {
       console.error('Error fetching places:', err);
-      setError('Failed to fetch place recommendations. Please try again.');
-      setLoading(false);
+      setError('Failed to load places. Please try again.');
+    } finally {
+      setIsLoadingPlaces(false);
     }
-  }, [location, filters, selectedNeighborhood, user, userPreferences, userAnalysis]);
+  };
 
-  // Determine place types based on user preferences
+  // Generate coordinates near a center point
+  const generateNearbyCoordinates = (center, distanceKm) => {
+    // Earth's radius in kilometers
+    const R = 6371;
+    
+    // Convert distance from kilometers to radians
+    const radiusInRad = distanceKm / R;
+    
+    // Random angle
+    const angle = Math.random() * 2 * Math.PI;
+    
+    // Convert center coordinates to radians
+    const lat1 = center.lat * Math.PI / 180;
+    const lng1 = center.lng * Math.PI / 180;
+    
+    // Calculate new position
+    const lat2 = Math.asin(Math.sin(lat1) * Math.cos(radiusInRad) + 
+                           Math.cos(lat1) * Math.sin(radiusInRad) * Math.cos(angle));
+    const lng2 = lng1 + Math.atan2(Math.sin(angle) * Math.sin(radiusInRad) * Math.cos(lat1),
+                                   Math.cos(radiusInRad) - Math.sin(lat1) * Math.sin(lat2));
+    
+    // Convert back to degrees
+    return {
+      lat: lat2 * 180 / Math.PI,
+      lng: lng2 * 180 / Math.PI
+    };
+  };
+
+  // Update map radius circle
+  const updateMapRadius = (radius) => {
+    setMapRadius({
+      radius: radius * 1000, // Convert km to meters
+      options: {
+        strokeColor: '#4a6fa5',
+        strokeOpacity: 0.8,
+        strokeWeight: 2,
+        fillColor: '#4a6fa5',
+        fillOpacity: 0.1
+      }
+    });
+  };
+
+  // Handle filter changes
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    const newValue = name === 'radius' || name === 'priceLevel' ? parseInt(value) : value;
+    
+    const newFilters = {
+      ...filters,
+      [name]: newValue
+    };
+    
+    setFilters(newFilters);
+    
+    // Update map radius if radius filter changes
+    if (name === 'radius') {
+      updateMapRadius(newValue);
+    }
+    
+    // If a neighborhood is selected, fetch places with new filters
+    if (selectedNeighborhood) {
+      handleNeighborhoodSelect(selectedNeighborhood);
+    }
+  };
+
+  // Create a prompt for Gemini API to get place recommendations
+  const createPlaceRecommendationPrompt = (neighborhood, priorityTypes, filters) => {
+    const neighborhoodInfo = `Neighborhood: ${neighborhood.name}, ${neighborhood.city}, ${neighborhood.state}`;
+    const coordinates = `Coordinates: ${neighborhood.name}, ${neighborhood.name}`;
+    
+    // Format priority types as a numbered list
+    const priorityTypesList = priorityTypes.map((type, index) => 
+      `${index + 1}. ${type}`
+    ).join('\n');
+    
+    // Format amenities as a list
+    const amenitiesList = neighborhood.amenities ? 
+      `Neighborhood Amenities: ${neighborhood.amenities.join(', ')}` : '';
+    
+    // Include commute details
+    const commuteDetails = neighborhood.commuteDetails ? 
+      `Commute Details: Distance - ${neighborhood.commuteDetails.distance}, Time - ${neighborhood.commuteDetails.time}, Mode - ${neighborhood.commuteDetails.travelMode}` : '';
+    
+    // Include filter information
+    const filterInfo = `
+      Type Filter: ${filters.type}
+      Radius: ${filters.radius} km
+      Price Level: ${filters.priceLevel === 0 ? 'Any' : '₹'.repeat(filters.priceLevel)}
+    `;
+    
+    // Create the prompt
+    return `
+      You are a local expert and place recommendation system for ${neighborhood.name}, ${neighborhood.city}, ${neighborhood.state}. I need detailed recommendations for places near this neighborhood based on specific priority categories.
+      
+      ${neighborhoodInfo}
+      ${coordinates}
+      ${amenitiesList}
+      ${commuteDetails}
+      
+      Priority place categories (in order of importance):
+      ${priorityTypesList}
+      
+      Filters:
+      ${filterInfo}
+      
+      Please provide recommendations for places that match these criteria. For each place, include:
+      1. Name (use realistic, specific place names that would actually exist in this area)
+      2. Category (matching one of the priority types exactly)
+      3. Description (2-3 sentences about what makes this place special)
+      4. Address (use realistic street names and addresses for ${neighborhood.city})
+      5. Coordinates (latitude and longitude near ${coordinates})
+      6. Price level (1-4, where 1 is least expensive)
+      7. Rating (1-5, with realistic ratings between 3.5-4.8)
+      8. Distance from the neighborhood center (in km, between 0.1-5km)
+      9. Website URL (create realistic website URLs)
+      10. Image URL (use URLs like https://source.unsplash.com/400x300/?[place_type], for example https://source.unsplash.com/400x300/?restaurant for a restaurant image)
+      
+      The results should be sorted by priority category first (following the order above), and then by distance within each category.
+      
+      Format the response as a JSON array with the following structure:
+      [
+        {
+          "id": "unique_id_string",
+          "name": "Place Name",
+          "category": "place_category",
+          "description": "Brief description of the place",
+          "address": "Full address",
+          "coordinates": { "lat": latitude_number, "lng": longitude_number },
+          "priceLevel": price_level_number,
+          "rating": rating_number,
+          "distance": distance_in_km_number,
+          "imageUrl": "https://source.unsplash.com/400x300/?place_category",
+          "website": "https://example.com",
+          "priorityRank": priority_rank_number
+        },
+        ...
+      ]
+      
+      The radius should be respected - only include places within ${filters.radius} km of the neighborhood center coordinates.
+      ${filters.type !== 'all' ? `Filter results to only include places of type: ${filters.type}` : ''}
+      ${filters.priceLevel > 0 ? `Filter results to only include places with price level up to: ${filters.priceLevel}` : ''}
+      
+      Include at least 3 places for each priority category, for a total of at least 15 places.
+      Make sure all places are realistic and would actually exist in or near ${neighborhood.name}, ${neighborhood.city}.
+      
+      IMPORTANT: 
+      1. Respond ONLY with valid JSON. Do not include any explanatory text or markdown formatting.
+      2. Ensure all numeric values are actual numbers, not strings.
+      3. Make sure the JSON is properly formatted with no trailing commas.
+      4. Each place must have a unique ID.
+      5. Each place must have coordinates that are actual numbers, not strings.
+      6. Provide real-looking image URLs using the Unsplash format mentioned above.
+    `;
+  };
+
+  // Determine preferred place types based on user preferences and analysis
   const determinePreferredPlaceTypes = () => {
     const placeTypes = [];
     
     // If we have user preferences
     if (userPreferences) {
-      const { lifestylePreferences, mustHaves } = userPreferences;
-      
-      // Map lifestyle preferences to place types
-      const lifestyleToPlaceType = {
-        'activeLifestyle': ['gym', 'park', 'sports_complex'],
-        'outdoorActivities': ['park', 'hiking_trail', 'beach'],
-        'shopping': ['shopping_mall', 'clothing_store', 'department_store'],
-        'casualDining': ['restaurant', 'cafe', 'fast_food'],
-        'fineDining': ['restaurant'],
-        'nightlife': ['bar', 'night_club'],
-        'cultural': ['museum', 'art_gallery', 'theater'],
-        'artsAndMusic': ['art_gallery', 'concert_hall', 'music_venue'],
-        'familyFriendly': ['park', 'amusement_park', 'zoo'],
-        'quiet': ['library', 'bookstore', 'cafe'],
-        'community': ['community_center', 'library'],
-        'socialGatherings': ['restaurant', 'bar', 'event_venue']
-      };
-      
       // Add place types based on lifestyle preferences
-      lifestylePreferences.forEach(pref => {
-        if (lifestyleToPlaceType[pref]) {
-          placeTypes.push(...lifestyleToPlaceType[pref]);
-        }
-      });
-      
-      // Add place types based on must-haves
-      const mustHaveToPlaceType = {
-        'parking': ['parking'],
-        'publicTransport': ['transit_station', 'bus_station', 'subway_station'],
-        'parks': ['park'],
-        'schools': ['school', 'university'],
-        'groceryStores': ['grocery_store', 'supermarket'],
-        'gym': ['gym']
-      };
-      
-      // If mustHaves is an object with keys
-      if (typeof mustHaves === 'object' && Object.keys(mustHaves).length > 0) {
-        Object.keys(mustHaves).forEach(mustHave => {
-          if (mustHaveToPlaceType[mustHave]) {
-            placeTypes.push(...mustHaveToPlaceType[mustHave]);
+      if (userPreferences.lifestylePreferences && userPreferences.lifestylePreferences.length > 0) {
+        const lifestyleToPlaceType = {
+          'activeLifestyle': ['gym', 'sports_complex', 'park'],
+          'outdoorActivities': ['park', 'hiking_trail', 'campground'],
+          'shopping': ['shopping_mall', 'clothing_store', 'department_store'],
+          'casualDining': ['restaurant', 'cafe', 'fast_food'],
+          'fineDining': ['fine_dining', 'restaurant'],
+          'nightlife': ['bar', 'night_club', 'lounge'],
+          'cultural': ['museum', 'art_gallery', 'theater'],
+          'artsAndMusic': ['concert_hall', 'art_gallery', 'music_venue'],
+          'familyFriendly': ['park', 'family_restaurant', 'amusement_park'],
+          'quiet': ['library', 'bookstore', 'cafe'],
+          'community': ['community_center', 'place_of_worship'],
+          'socialGatherings': ['event_venue', 'restaurant', 'bar']
+        };
+        
+        userPreferences.lifestylePreferences.forEach(pref => {
+          if (lifestyleToPlaceType[pref]) {
+            placeTypes.push(...lifestyleToPlaceType[pref]);
           }
         });
       }
-      // If mustHaves is an array of objects with name property
-      else if (Array.isArray(userPreferences.prioritizedMustHaves)) {
+      
+      // Add place types based on must-haves
+      if (userPreferences.prioritizedMustHaves && userPreferences.prioritizedMustHaves.length > 0) {
+        const mustHaveToPlaceType = {
+          'groceryStores': ['grocery_store', 'supermarket'],
+          'publicTransport': ['transit_station', 'bus_station', 'subway_station'],
+          'parks': ['park', 'garden'],
+          'restaurants': ['restaurant'],
+          'cafes': ['cafe'],
+          'bars': ['bar'],
+          'schools': ['school', 'university'],
+          'hospitals': ['hospital', 'medical_center'],
+          'shoppingCenters': ['shopping_mall', 'department_store'],
+          'gym': ['gym']
+        };
+        
         userPreferences.prioritizedMustHaves.forEach(item => {
           if (mustHaveToPlaceType[item.name]) {
             placeTypes.push(...mustHaveToPlaceType[item.name]);
@@ -257,10 +442,7 @@ const PlaceRecommender = () => {
     }
     
     // If we have user analysis
-    if (userAnalysis) {
-      const { lifestyle_indicators } = userAnalysis;
-      
-      // Map lifestyle indicators to place types
+    if (userAnalysis && userAnalysis.lifestyle_indicators) {
       const indicatorKeywords = {
         'active': ['gym', 'park', 'sports_complex'],
         'outdoor': ['park', 'hiking_trail'],
@@ -275,235 +457,43 @@ const PlaceRecommender = () => {
         'family': ['park', 'family_restaurant']
       };
       
-      // Add place types based on lifestyle indicators
-      if (lifestyle_indicators && Array.isArray(lifestyle_indicators)) {
-        lifestyle_indicators.forEach(indicator => {
-          const lowerIndicator = indicator.toLowerCase();
-          
-          // Check each keyword
-          Object.entries(indicatorKeywords).forEach(([keyword, types]) => {
-            if (lowerIndicator.includes(keyword)) {
-              placeTypes.push(...types);
-            }
-          });
+      userAnalysis.lifestyle_indicators.forEach(indicator => {
+        Object.keys(indicatorKeywords).forEach(keyword => {
+          if (indicator.toLowerCase().includes(keyword)) {
+            placeTypes.push(...indicatorKeywords[keyword]);
+          }
         });
-      }
+      });
+    }
+    
+    // If we have no place types, add some defaults
+    if (placeTypes.length === 0) {
+      placeTypes.push('restaurant', 'cafe', 'park', 'gym', 'shopping_mall');
     }
     
     // Remove duplicates and return
     return [...new Set(placeTypes)];
   };
 
-  // Generate mock places based on preferred place types
-  const generateMockPlaces = (placeTypes) => {
-    const mockPlacesByType = {
-      'restaurant': [
-        {
-          id: 101,
-          name: 'Farm Table',
-          type: 'Restaurant',
-          address: '754 Post St, San Francisco, CA',
-          rating: 4.6,
-          image: 'https://lh3.googleusercontent.com/places/ANXAkqFUxlDdKUhu_aUwxGq4u7MnDw1OaX9YU9uKs-Q6-EJbYGVU7Gxdw9RLnN7fYMUVoIgRgYKJVd4s9-_X1-EwZzR_-Ql-_Gg=s1600-w400',
-          description: 'Farm-to-table restaurant with seasonal ingredients and cozy atmosphere.',
-          distance: 0.7,
-          priceLevel: 2,
-          openNow: true,
-          website: 'https://farmtablesf.com',
-          latitude: 37.7885,
-          longitude: -122.4124
-        },
-        {
-          id: 102,
-          name: 'Liholiho Yacht Club',
-          type: 'Restaurant',
-          address: '871 Sutter St, San Francisco, CA',
-          rating: 4.7,
-          image: 'https://lh3.googleusercontent.com/places/ANXAkqHYeT9k3aFXbihQHHY_FQdZmFRwvQUXIO0jFN-mLnGXlZOXUKp6CA8zzJYl9LHmJKbw-dxVRJA7iy0wvS4c_x4APXzQdA=s1600-w400',
-          description: 'Modern Hawaiian cuisine with creative cocktails in a vibrant setting.',
-          distance: 0.9,
-          priceLevel: 3,
-          openNow: true,
-          website: 'https://liholihoyachtclub.com',
-          latitude: 37.7882,
-          longitude: -122.4143
-        }
-      ],
-      'cafe': [
-        {
-          id: 201,
-          name: 'Sightglass Coffee',
-          type: 'Cafe',
-          address: '270 7th St, San Francisco, CA',
-          rating: 4.5,
-          image: 'https://lh3.googleusercontent.com/places/ANXAkqGFF_YxaOjHXKJYfyBqUgcaYh9iIbZV1Yx5qOKQQQhKTnLrS_gR_oDGq7WKPz5-Iy-Ry5QQCpKg7Ib9QfJmXHlvOQlKlw=s1600-w400',
-          description: 'Artisanal coffee roaster with industrial-chic space and pour-over options.',
-          distance: 1.2,
-          priceLevel: 2,
-          openNow: true,
-          website: 'https://sightglasscoffee.com',
-          latitude: 37.7762,
-          longitude: -122.4093
-        },
-        {
-          id: 202,
-          name: 'Ritual Coffee Roasters',
-          type: 'Cafe',
-          address: '1026 Valencia St, San Francisco, CA',
-          rating: 4.4,
-          image: 'https://lh3.googleusercontent.com/places/ANXAkqELZPdZWl9S5Lfgc4qGLDyS_EEH-UkQTCfvO4YTrEVmGVzYlZ1FLvCJKpP_F9xrr_IQPQnBKvvj-_YQnQGvZ-_Hs9Ib=s1600-w400',
-          description: 'Specialty coffee shop known for single-origin beans and minimalist decor.',
-          distance: 1.5,
-          priceLevel: 2,
-          openNow: true,
-          website: 'https://ritualcoffee.com',
-          latitude: 37.7568,
-          longitude: -122.4213
-        }
-      ],
-      'gym': [
-        {
-          id: 301,
-          name: 'Equinox',
-          type: 'Gym',
-          address: '301 Pine St, San Francisco, CA',
-          rating: 4.3,
-          image: 'https://lh3.googleusercontent.com/places/ANXAkqFcLNQvJoQPUZwIX9085Tl7pZ_h9PnQAkRZ-UhzZ9OV9GnjL-gKrFgV_LrJAYWKgQGDTc9LJVvIgW_NZzMJ-gYQXQXQrQ=s1600-w400',
-          description: 'Luxury fitness club with state-of-the-art equipment and premium amenities.',
-          distance: 1.8,
-          priceLevel: 4,
-          openNow: true,
-          website: 'https://equinox.com',
-          latitude: 37.7908,
-          longitude: -122.4008
-        },
-        {
-          id: 302,
-          name: 'Fitness SF',
-          type: 'Gym',
-          address: '1001 Brannan St, San Francisco, CA',
-          rating: 4.2,
-          image: 'https://lh3.googleusercontent.com/places/ANXAkqHvVUiYnHH-ky_Jx4r_Xm9zJCQRJgCsR9252YQnuVYYQnQZcBvF_V7tE_KjnG_aqWKcjuTCkTXzB9UdplLlBdz-Fy-Ouw=s1600-w400',
-          description: 'Modern gym with comprehensive equipment and group fitness classes.',
-          distance: 2.1,
-          priceLevel: 3,
-          openNow: true,
-          website: 'https://fitnesssf.com',
-          latitude: 37.7720,
-          longitude: -122.4069
-        }
-      ],
-      'park': [
-        {
-          id: 401,
-          name: 'Dolores Park',
-          type: 'Park',
-          address: 'Dolores St & 19th St, San Francisco, CA',
-          rating: 4.8,
-          image: 'https://lh3.googleusercontent.com/places/ANXAkqFQJYVjO9Qzm9u_-ZVNx6J-ioE3K9LQtLV-naTCnbJ_BEQFSuQBRcNO_QdOJTZ-_-zLRl4W9ZnhHl-UUzwcQqXJZnQKvw=s1600-w400',
-          description: 'Popular urban park with stunning city views, picnic areas, and tennis courts.',
-          distance: 1.3,
-          priceLevel: 0,
-          openNow: true,
-          website: 'https://sfrecpark.org/destination/mission-dolores-park/',
-          latitude: 37.7596,
-          longitude: -122.4269
-        },
-        {
-          id: 402,
-          name: 'Golden Gate Park',
-          type: 'Park',
-          address: 'Golden Gate Park, San Francisco, CA',
-          rating: 4.9,
-          image: 'https://lh3.googleusercontent.com/places/ANXAkqGQh0WMT9XRl7gk8tX4-HGQQYPVODtN-Ld_5qcCGDuFB6X_0CTM9pDjqGldkKQkXpIGYEcb5YnvhOXQH9rx_XZbKQnJrA=s1600-w400',
-          description: 'Iconic urban park with gardens, museums, and recreational areas.',
-          distance: 2.5,
-          priceLevel: 0,
-          openNow: true,
-          website: 'https://goldengatepark.com',
-          latitude: 37.7694,
-          longitude: -122.4862
-        }
-      ],
-      'shopping_mall': [
-        {
-          id: 501,
-          name: 'Westfield San Francisco Centre',
-          type: 'Shopping Mall',
-          address: '865 Market St, San Francisco, CA',
-          rating: 4.3,
-          image: 'https://lh3.googleusercontent.com/places/ANXAkqGQJJVZZFYw-Q_xyFl8CdQTOepWj0G9DsKvVxGGn5Tz5PuXWXNzGOLEXhrYJ-Hy-Iy-Ry5QQCpKg7Ib9QfJmXHlvOQlKlw=s1600-w400',
-          description: 'Upscale shopping mall with department stores, boutiques, and dining options.',
-          distance: 1.7,
-          priceLevel: 3,
-          openNow: true,
-          website: 'https://westfield.com/sanfrancisco',
-          latitude: 37.7841,
-          longitude: -122.4076
-        }
-      ],
-      'museum': [
-        {
-          id: 601,
-          name: 'SFMOMA',
-          type: 'Museum',
-          address: '151 3rd St, San Francisco, CA',
-          rating: 4.7,
-          image: 'https://lh3.googleusercontent.com/places/ANXAkqFQJYVjO9Qzm9u_-ZVNx6J-ioE3K9LQtLV-naTCnbJ_BEQFSuQBRcNO_QdOJTZ-_-zLRl4W9ZnhHl-UUzwcQqXJZnQKvw=s1600-w400',
-          description: 'Modern art museum with an extensive collection and striking architecture.',
-          distance: 1.4,
-          priceLevel: 2,
-          openNow: true,
-          website: 'https://sfmoma.org',
-          latitude: 37.7858,
-          longitude: -122.4008
-        }
-      ]
-    };
-    
-    // If no specific place types, return a mix of everything
-    if (!placeTypes.length) {
-      return Object.values(mockPlacesByType).flat();
+  // Filter places based on selected filters
+  const filteredPlaces = places.filter(place => {
+    // Filter by type
+    if (filters.type !== 'all' && place.category !== filters.type) {
+      return false;
     }
     
-    // Filter to only include requested place types
-    let result = [];
-    placeTypes.forEach(type => {
-      // Map Google place types to our mock data categories
-      const mappedType = type.includes('restaurant') ? 'restaurant' :
-                         type.includes('cafe') ? 'cafe' :
-                         type.includes('gym') ? 'gym' :
-                         type.includes('park') ? 'park' :
-                         type.includes('shop') || type.includes('store') || type.includes('mall') ? 'shopping_mall' :
-                         type.includes('museum') || type.includes('gallery') ? 'museum' :
-                         null;
-      
-      if (mappedType && mockPlacesByType[mappedType]) {
-        result = [...result, ...mockPlacesByType[mappedType]];
-      }
-    });
+    // Filter by price level
+    if (filters.priceLevel > 0 && place.priceLevel > filters.priceLevel) {
+      return false;
+    }
     
-    // Remove duplicates by ID
-    const uniqueResult = Array.from(new Map(result.map(item => [item.id, item])).values());
+    // Filter by radius
+    if (place.distance > filters.radius) {
+      return false;
+    }
     
-    // If we still have no results, return a mix of everything
-    return uniqueResult.length > 0 ? uniqueResult : Object.values(mockPlacesByType).flat();
-  };
-
-  // Handle filter changes
-  const handleFilterChange = (e) => {
-    const { name, value } = e.target;
-    setFilters(prev => ({
-      ...prev,
-      [name]: value
-    }));
-  };
-
-  // Handle neighborhood selection
-  const handleNeighborhoodSelect = (neighborhood) => {
-    setSelectedNeighborhood(neighborhood);
-    setLocation(neighborhood.coordinates);
-  };
+    return true;
+  });
 
   // Get place types for filter dropdown
   const placeTypes = [
@@ -512,7 +502,7 @@ const PlaceRecommender = () => {
     { value: 'cafe', label: 'Cafes' },
     { value: 'gym', label: 'Gyms' },
     { value: 'park', label: 'Parks' },
-    { value: 'shopping', label: 'Shopping' },
+    { value: 'shopping_mall', label: 'Shopping' },
     { value: 'entertainment', label: 'Entertainment' }
   ];
 
@@ -525,27 +515,45 @@ const PlaceRecommender = () => {
 
       <div className="neighborhoods-section">
         <h2>Recommended Neighborhoods</h2>
-        <div className="neighborhoods-grid">
-          {neighborhoods.map(neighborhood => (
-            <div 
-              key={neighborhood.id} 
-              className={`neighborhood-card ${selectedNeighborhood && selectedNeighborhood.id === neighborhood.id ? 'selected' : ''}`}
-              onClick={() => handleNeighborhoodSelect(neighborhood)}
-            >
-              <div className="match-score">
-                <span className="score-value">{neighborhood.matchScore}%</span>
-                <span className="score-label">Match</span>
+        {loading ? (
+          <div className="loading-indicator">
+            <div className="spinner"></div>
+            <p>Loading recommended neighborhoods...</p>
+          </div>
+        ) : error && !neighborhoods.length ? (
+          <div className="error-message">
+            <p>{error}</p>
+          </div>
+        ) : (
+          <div className="neighborhoods-grid">
+            {neighborhoods.map(neighborhood => (
+              <div 
+                key={neighborhood.id} 
+                className={`neighborhood-card ${selectedNeighborhood && selectedNeighborhood.id === neighborhood.id ? 'selected' : ''}`}
+                onClick={() => handleNeighborhoodSelect(neighborhood)}
+              >
+                <div className="match-score">
+                  <span className="score-value">{neighborhood.matchScore}%</span>
+                  <span className="score-label">Match</span>
+                </div>
+                <div className="neighborhood-content">
+                  <h3>{neighborhood.name}</h3>
+                  <p className="neighborhood-location">{neighborhood.city}, {neighborhood.state}</p>
+                  <p className="neighborhood-description">{neighborhood.description}</p>
+                </div>
+                <div className="neighborhood-cta">
+                  <button className="select-btn">
+                    {selectedNeighborhood && selectedNeighborhood.id === neighborhood.id ? 'Selected' : 'Explore Places'}
+                  </button>
+                </div>
               </div>
-              <div className="neighborhood-content">
-                <h3>{neighborhood.name}</h3>
-                <p className="neighborhood-location">{neighborhood.city}, {neighborhood.state}</p>
-                <p className="neighborhood-description">{neighborhood.description}</p>
-              </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </div>
 
+      {selectedNeighborhood && (
+        <>
       <div className="filters-section">
         <div className="filter-group">
           <label htmlFor="type">Place Type</label>
@@ -562,17 +570,18 @@ const PlaceRecommender = () => {
         </div>
         
         <div className="filter-group">
-          <label htmlFor="radius">Distance (miles)</label>
+              <label htmlFor="radius">Distance (km)</label>
           <select 
             id="radius" 
             name="radius" 
             value={filters.radius} 
             onChange={handleFilterChange}
           >
-            <option value="1">1 mile</option>
-            <option value="3">3 miles</option>
-            <option value="5">5 miles</option>
-            <option value="10">10 miles</option>
+                <option value="1">1 km</option>
+                <option value="2">2 km</option>
+                <option value="5">5 km</option>
+                <option value="10">10 km</option>
+                <option value="20">20 km</option>
           </select>
         </div>
         
@@ -585,42 +594,49 @@ const PlaceRecommender = () => {
             onChange={handleFilterChange}
           >
             <option value="0">Any</option>
-            <option value="1">$</option>
-            <option value="2">$$</option>
-            <option value="3">$$$</option>
-            <option value="4">$$$$</option>
+                <option value="1">₹</option>
+                <option value="2">₹₹</option>
+                <option value="3">₹₹₹</option>
+                <option value="4">₹₹₹₹</option>
           </select>
         </div>
       </div>
 
-      {loading ? (
+          <div className="places-section">
+            <h2>Places in {selectedNeighborhood.name}</h2>
+            
+            {isLoadingPlaces ? (
         <div className="loading-indicator">
-          <p>Finding places near you...</p>
-          <div className="spinner"></div>
+                <div className="spinner"></div>
+                <p>Finding places in {selectedNeighborhood.name}...</p>
         </div>
-      ) : error ? (
+            ) : error && !places.length ? (
         <div className="error-message">
           <p>{error}</p>
-          <button onClick={fetchPlaces}>Try Again</button>
+                <button onClick={() => handleNeighborhoodSelect(selectedNeighborhood)}>Try Again</button>
         </div>
       ) : (
-        <>
-          <div className="map-section">
-            <MapView 
-              locations={mapLocations} 
-              center={location}
-              zoom={13}
-            />
-          </div>
-          
-          <div className="places-grid">
-            {places.length > 0 ? (
-              places.map(place => (
+              <div className="places-container">
+                <div className="places-list">
+                  {filteredPlaces.length > 0 ? (
+                    filteredPlaces.map(place => (
                 <PlaceCard key={place.id} place={place} />
               ))
             ) : (
-              <div className="no-results">
+                    <div className="no-places-message">
                 <p>No places found matching your criteria. Try adjusting your filters.</p>
+                    </div>
+                  )}
+                </div>
+                
+                <div className="map-container">
+                  <MapView 
+                    center={selectedNeighborhood.coordinates}
+                    zoom={14}
+                    markers={mapLocations}
+                    radius={mapRadius}
+                  />
+                </div>
               </div>
             )}
           </div>

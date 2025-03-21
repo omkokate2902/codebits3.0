@@ -111,11 +111,23 @@ const PreferenceForm = ({ onSubmit, onTimelineData, userId }) => {
 
     return () => {
       // Clean up
-      if (addressMarker) {
+      if (addressMarker && typeof addressMarker.setMap === 'function') {
         addressMarker.setMap(null);
       }
+      
+      // Handle case where commuteCircle is an array of circles
       if (commuteCircle) {
-        commuteCircle.setMap(null);
+        if (Array.isArray(commuteCircle)) {
+          // Clear all circles in the array
+          commuteCircle.forEach(circle => {
+            if (circle && typeof circle.setMap === 'function') {
+              circle.setMap(null);
+            }
+          });
+        } else if (typeof commuteCircle.setMap === 'function') {
+          // Clear single circle
+          commuteCircle.setMap(null);
+        }
       }
     };
   }, []);
@@ -201,8 +213,12 @@ const PreferenceForm = ({ onSubmit, onTimelineData, userId }) => {
     if (commuteCircle) {
       // If it's an array, clear all circles
       if (Array.isArray(commuteCircle)) {
-        commuteCircle.forEach(circle => circle.setMap(null));
-      } else {
+        commuteCircle.forEach(circle => {
+          if (circle && typeof circle.setMap === 'function') {
+            circle.setMap(null);
+          }
+        });
+      } else if (typeof commuteCircle.setMap === 'function') {
         // If it's a single circle, clear it
         commuteCircle.setMap(null);
       }
@@ -216,27 +232,31 @@ const PreferenceForm = ({ onSubmit, onTimelineData, userId }) => {
     // Get all enabled travel modes
     Object.entries(preferences.commute.travelModes).forEach(([modeId, modeData]) => {
       if (modeData.enabled) {
-        // Get color based on travel mode
-        const circleColor = getTravelModeColor(modeId);
-        
-        // Create new circle
-        const circle = new window.google.maps.Circle({
-          map: mapInstance,
-          center: center,
-          radius: modeData.distance * 1000, // convert km to meters
-          strokeColor: circleColor,
-          strokeOpacity: 0.8,
-          strokeWeight: 2,
-          fillColor: circleColor,
-          fillOpacity: 0.1
-        });
-        
-        circles.push(circle);
-        
-        // Extend bounds to include this circle
-        const circleBounds = circle.getBounds();
-        if (circleBounds) {
-          bounds.union(circleBounds);
+        try {
+          // Get color based on travel mode
+          const circleColor = getTravelModeColor(modeId);
+          
+          // Create new circle
+          const circle = new window.google.maps.Circle({
+            map: mapInstance,
+            center: center,
+            radius: modeData.distance * 1000, // convert km to meters
+            strokeColor: circleColor,
+            strokeOpacity: 0.8,
+            strokeWeight: 2,
+            fillColor: circleColor,
+            fillOpacity: 0.1
+          });
+          
+          circles.push(circle);
+          
+          // Extend bounds to include this circle
+          const circleBounds = circle.getBounds();
+          if (circleBounds) {
+            bounds.union(circleBounds);
+          }
+        } catch (error) {
+          console.error(`Error creating circle for travel mode ${modeId}:`, error);
         }
       }
     });
@@ -246,7 +266,11 @@ const PreferenceForm = ({ onSubmit, onTimelineData, userId }) => {
     
     // Adjust map zoom to fit all circles
     if (circles.length > 0) {
-      mapInstance.fitBounds(bounds);
+      try {
+        mapInstance.fitBounds(bounds);
+      } catch (error) {
+        console.error('Error fitting bounds:', error);
+      }
     }
   };
 
@@ -346,7 +370,11 @@ const PreferenceForm = ({ onSubmit, onTimelineData, userId }) => {
     
     // If coordinates exist, update the circle on the map
     if (preferences.commute.coordinates) {
-      updateCommuteCircle(preferences.commute.coordinates);
+      try {
+        updateCommuteCircle(preferences.commute.coordinates);
+      } catch (error) {
+        console.error('Error updating commute circle:', error);
+      }
     }
   };
 

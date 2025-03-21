@@ -1,16 +1,28 @@
 import React, { useEffect, useRef } from 'react';
 import '../styles/components/MapView.css';
 
-const MapView = ({ locations, center, zoom = 12 }) => {
+const MapView = ({ markers = [], center, zoom = 12, radius = null }) => {
   const mapRef = useRef(null);
   const mapInstance = useRef(null);
-  const markers = useRef([]);
+  const mapMarkers = useRef([]);
+  const radiusCircle = useRef(null);
 
   useEffect(() => {
+    console.log('MapView: Rendering with markers:', markers);
+    console.log('MapView: Center:', center);
+    console.log('MapView: Radius:', radius);
+    
+    // Check if Google Maps API is available
+    if (!window.google || !window.google.maps) {
+      console.error('Google Maps API not loaded');
+      return;
+    }
+
     // Initialize map if Google Maps API is loaded
-    if (window.google && mapRef.current && !mapInstance.current) {
-      // Use provided center or default to San Francisco
-      const mapCenter = center || { lat: 37.7749, lng: -122.4194 };
+    if (mapRef.current && !mapInstance.current) {
+      console.log('MapView: Initializing map');
+      // Use provided center or default to New Delhi (since we're focusing on Indian cities)
+      const mapCenter = center || { lat: 28.6139, lng: 77.2090 };
       
       // Create the map
       mapInstance.current = new window.google.maps.Map(mapRef.current, {
@@ -27,62 +39,148 @@ const MapView = ({ locations, center, zoom = 12 }) => {
           }
         ]
       });
+      
+      console.log('MapView: Map initialized');
     }
     
-    // Add markers when locations change
-    if (window.google && mapInstance.current && locations && locations.length > 0) {
+    // Update radius circle if needed
+    if (mapInstance.current && center && radius) {
+      // Clear existing radius circle
+      if (radiusCircle.current) {
+        radiusCircle.current.setMap(null);
+      }
+      
+      // Create new radius circle
+      radiusCircle.current = new window.google.maps.Circle({
+        map: mapInstance.current,
+        center: center,
+        radius: radius.radius,
+        ...radius.options
+      });
+      
+      console.log('MapView: Radius circle added:', radius.radius, 'meters');
+    } else if (radiusCircle.current) {
+      // Remove circle if no radius provided
+      radiusCircle.current.setMap(null);
+      radiusCircle.current = null;
+    }
+    
+    // Add markers when markers array changes
+    if (mapInstance.current && markers && markers.length > 0) {
+      console.log('MapView: Adding markers to map');
+      
       // Clear existing markers
-      markers.current.forEach(marker => marker.setMap(null));
-      markers.current = [];
+      mapMarkers.current.forEach(marker => marker.setMap(null));
+      mapMarkers.current = [];
       
       // Create bounds object to fit all markers
       const bounds = new window.google.maps.LatLngBounds();
       
       // Add new markers
-      locations.forEach((location, index) => {
-        if (location.position) {
+      markers.forEach((marker, index) => {
+        if (marker.coordinates && marker.coordinates.lat && marker.coordinates.lng) {
           const position = {
-            lat: location.position.lat,
-            lng: location.position.lng
+            lat: parseFloat(marker.coordinates.lat),
+            lng: parseFloat(marker.coordinates.lng)
           };
           
+          console.log(`MapView: Adding marker ${index}:`, marker.name, position);
+          
+          // Determine marker icon based on category
+          let icon = null;
+          const categoryIcons = {
+            'neighborhood': {
+              path: window.google.maps.SymbolPath.CIRCLE,
+              fillColor: '#4285f4',
+              fillOpacity: 1,
+              strokeColor: '#ffffff',
+              strokeWeight: 2,
+              scale: 10
+            },
+            'restaurant': {
+              url: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png'
+            },
+            'cafe': {
+              url: 'https://maps.google.com/mapfiles/ms/icons/orange-dot.png'
+            },
+            'gym': {
+              url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png'
+            },
+            'park': {
+              url: 'https://maps.google.com/mapfiles/ms/icons/green-dot.png'
+            },
+            'shopping_mall': {
+              url: 'https://maps.google.com/mapfiles/ms/icons/yellow-dot.png'
+            },
+            'entertainment': {
+              url: 'https://maps.google.com/mapfiles/ms/icons/purple-dot.png'
+            }
+          };
+          
+          // Use category-based icon or default to category label
+          if (marker.category && categoryIcons[marker.category]) {
+            icon = categoryIcons[marker.category];
+          }
+          
           // Create marker
-          const marker = new window.google.maps.Marker({
+          const mapMarker = new window.google.maps.Marker({
             position,
             map: mapInstance.current,
-            title: location.name,
-            label: {
-              text: (index + 1).toString(),
+            title: marker.name,
+            icon: icon,
+            label: icon && icon.url ? {
+              text: (index).toString(),
               color: 'white'
-            },
+            } : null,
             animation: window.google.maps.Animation.DROP
           });
           
-          // Create info window
+          // Create info window with more detailed content
           const infoWindow = new window.google.maps.InfoWindow({
             content: `
               <div class="map-info-window">
-                <h3>${location.name}</h3>
-                <p>${location.type || 'Social Group'}</p>
+                <h3>${marker.name}</h3>
+                ${marker.category === 'neighborhood' 
+                  ? `<p class="info-window-type">Selected Neighborhood</p>` 
+                  : `<p class="info-window-type">${marker.category.replace(/_/g, ' ')}</p>`
+                }
+                ${marker.address ? `<p class="info-window-address">${marker.address}</p>` : ''}
+                ${marker.description ? `<p class="info-window-description">${marker.description}</p>` : ''}
+                ${marker.category !== 'neighborhood' 
+                  ? `<button class="info-window-directions" onclick="window.open('https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(marker.address || marker.name)}', '_blank')">Get Directions</button>` 
+                  : ''
+                }
               </div>
             `
           });
           
           // Add click listener to open info window
-          marker.addListener('click', () => {
-            infoWindow.open(mapInstance.current, marker);
+          mapMarker.addListener('click', () => {
+            // Close any open info windows
+            mapMarkers.current.forEach(m => {
+              if (m.infoWindow && m.infoWindow.getMap()) {
+                m.infoWindow.close();
+              }
+            });
+            
+            infoWindow.open(mapInstance.current, mapMarker);
+            mapMarker.infoWindow = infoWindow;
           });
           
           // Add marker to array
-          markers.current.push(marker);
+          mapMarker.infoWindow = infoWindow;
+          mapMarkers.current.push(mapMarker);
           
           // Extend bounds to include this marker
           bounds.extend(position);
+        } else {
+          console.warn(`MapView: Invalid coordinates for marker ${index}:`, marker);
         }
       });
       
       // Fit map to bounds if we have markers
-      if (markers.current.length > 0) {
+      if (mapMarkers.current.length > 0) {
+        console.log('MapView: Fitting bounds to markers');
         mapInstance.current.fitBounds(bounds);
         
         // Don't zoom in too far
@@ -93,15 +191,23 @@ const MapView = ({ locations, center, zoom = 12 }) => {
           window.google.maps.event.removeListener(listener);
         });
       }
+    } else if (mapInstance.current && center) {
+      // If we have a center but no markers, just center the map
+      console.log('MapView: Centering map on provided coordinates');
+      mapInstance.current.setCenter(center);
+      mapInstance.current.setZoom(zoom);
+    } else {
+      console.log('MapView: No markers or center provided');
     }
-  }, [locations, center, zoom]);
+  }, [markers, center, zoom, radius]);
 
-  // If no locations, show a message
-  if (!locations || locations.length === 0) {
+  // If no markers, show a message
+  if (!markers || markers.length === 0) {
     return (
       <div className="map-container empty">
         <div className="map-placeholder">
           <p>No locations to display</p>
+          <p className="map-placeholder-subtitle">Select a neighborhood to see places</p>
         </div>
       </div>
     );

@@ -21,14 +21,12 @@ const NeighborhoodResults = ({ recommendations, preferences, onBack }) => {
 
   return (
     <div className="results-container">
-      <div className="results-header-container">
-        <div className="results-header">
-          <h2>Your Perfect Neighborhoods</h2>
-          <p>Based on your preferences, we've found these neighborhoods that match your criteria.</p>
-          <button onClick={onBack} className="back-btn">Back to Preferences</button>
-        </div>
+      <div className="results-header">
+        <h2>Your Perfect Neighborhoods</h2>
+        <p>Based on your preferences, we've found these neighborhoods that match your criteria.</p>
+        <button onClick={onBack} className="back-btn">Back to Preferences</button>
       </div>
-
+      
       <div className="map-section">
         <h3>Neighborhood Map</h3>
         <MapView locations={mapLocations} />
