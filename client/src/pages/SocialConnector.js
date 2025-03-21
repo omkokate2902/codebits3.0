@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext, useCallback } from 'react';
 import { AuthContext } from '../context/AuthContext';
 import * as userStorage from '../utils/userStorage';
+import { generateSocialEvents } from '../utils/geminiApi';
 import '../styles/pages/SocialConnector.css';
 
 const SocialConnector = () => {
@@ -55,27 +56,16 @@ const SocialConnector = () => {
           persona: persona || 'balanced'
         };
         
-        console.log('Sending user data with event request:', userData);
+        console.log('User data for event personalization:', userData);
       }
       
-      // Make the actual API call to fetch events
-      const response = await fetch('http://localhost:3000/social/events', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': user ? `Bearer ${user.token}` : ''
-        }
-      });
-      
-      if (!response.ok) {
-        throw new Error(`API request failed with status ${response.status}`);
-      }
-      
-      const data = await response.json();
-      console.log('Events received from API:', data);
+      // Use Gemini API to generate social events instead of calling the backend
+      console.log('Generating social events using Gemini API...');
+      const eventsData = await generateSocialEvents();
+      console.log('Events received from Gemini API:', eventsData);
       
       // Filter events based on user preferences if available
-      let filteredEvents = [...data];
+      let filteredEvents = [...eventsData];
       
       if (userData.preferences && userData.preferences.lifestylePreferences) {
         // Map lifestyle preferences to event categories
@@ -471,44 +461,44 @@ const SocialConnector = () => {
           )}
         </div>
       </div>
-      
+
       {/* Render user profile overlay */}
       {renderUserProfile()}
       
       <div className="social-content">
         <div className="social-sidebar">
           <div className="filter-section">
-            <div className="filter-group">
+        <div className="filter-group">
               <label htmlFor="category">Event Category</label>
-              <select 
+          <select 
                 id="category" 
                 name="category" 
                 value={filters.category} 
-                onChange={handleFilterChange}
-              >
+            onChange={handleFilterChange}
+          >
                 {getCategories().map(category => (
                   <option key={category} value={category}>
                     {category === 'all' ? 'All Categories' : category}
                   </option>
-                ))}
-              </select>
-            </div>
-            
-            <div className="filter-group">
+            ))}
+          </select>
+        </div>
+        
+        <div className="filter-group">
               <label htmlFor="date">Event Month</label>
-              <select 
+          <select 
                 id="date" 
                 name="date" 
                 value={filters.date} 
-                onChange={handleFilterChange}
-              >
+            onChange={handleFilterChange}
+          >
                 {getMonths().map(month => (
                   <option key={month} value={month}>
                     {month === 'all' ? 'All Months' : month}
                   </option>
-                ))}
-              </select>
-            </div>
+            ))}
+          </select>
+        </div>
           </div>
           
           <div className="events-summary">

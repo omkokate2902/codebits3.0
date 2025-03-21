@@ -1,11 +1,11 @@
 .map-container {
   width: 100%;
-  height: 400px;
+  height: 450px;
   border-radius: 12px;
   overflow: hidden;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-  margin-bottom: 30px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
   position: relative;
+  margin-bottom: 2rem;
 }
 
 .map {
@@ -14,39 +14,120 @@
 }
 
 .map-container.empty {
-  background-color: #f8f9fa;
   display: flex;
   align-items: center;
   justify-content: center;
+  background-color: #f7f9fc;
+  border: 2px dashed #dce4f0;
 }
 
 .map-placeholder {
   text-align: center;
-  color: #666;
-  padding: 20px;
+  padding: 2rem;
 }
 
 .map-placeholder p {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: 1.2rem;
+  color: #4a6fa5;
+  font-weight: 500;
 }
 
-/* Info window styles */
+.map-placeholder-subtitle {
+  font-size: 0.9rem !important;
+  color: #8ca3c3 !important;
+  margin-top: 0.5rem !important;
+}
+
+/* Info window styling - these styles will be applied through the Google Maps API */
+.gm-style .gm-style-iw-c {
+  padding: 16px !important;
+  border-radius: 12px !important;
+  max-width: 300px !important;
+}
+
 .map-info-window {
-  padding: 5px;
-  max-width: 250px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+  padding: 4px;
 }
 
 .map-info-window h3 {
-  margin: 0 0 5px 0;
-  font-size: 1.1rem;
-  color: #4285f4;
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #2a4365;
 }
 
-.map-info-window p {
-  margin: 0 0 5px 0;
-  font-size: 0.9rem;
-  color: #555;
+.map-info-window .info-window-type {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #4a6fa5;
+  text-transform: capitalize;
+  font-weight: 500;
+  display: inline-block;
+  padding: 2px 8px;
+  background-color: #e6f0ff;
+  border-radius: 4px;
+}
+
+.map-info-window .info-window-address {
+  margin: 0 0 8px 0;
+  font-size: 13px;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.map-info-window .info-window-description {
+  margin: 0 0 12px 0;
+  font-size: 13px;
+  color: #475569;
+  line-height: 1.5;
+}
+
+.map-info-window .info-window-directions {
+  background-color: #4a6fa5;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: block;
+  width: 100%;
+  text-align: center;
+}
+
+.map-info-window .info-window-directions:hover {
+  background-color: #395b8c;
+}
+
+/* Custom marker styles */
+.custom-marker {
+  background-color: #4a6fa5;
+  border-radius: 50%;
+  color: white;
+  font-weight: bold;
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid white;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+}
+
+.custom-marker.neighborhood {
+  background-color: #4285f4;
+  width: 32px;
+  height: 32px;
+}
+
+/* Map controls positioning */
+.map-container .gm-style .gm-style-mtc,
+.map-container .gm-style .gm-fullscreen-control {
+  margin: 10px !important;
 }
 
 /* Map controls styling */

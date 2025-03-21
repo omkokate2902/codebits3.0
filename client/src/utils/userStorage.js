@@ -15,6 +15,7 @@ const USER_DATA_KEY = 'roommate_finder_user_data';
 export const getAllUserData = () => {
   try {
     const userData = localStorage.getItem(USER_DATA_KEY);
+    console.log('userData', userData);
     return userData ? JSON.parse(userData) : {};
   } catch (error) {
     console.error('Error getting user data from local storage:', error);
@@ -97,6 +98,27 @@ export const saveUserPersona = (userId, persona) => {
 };
 
 /**
+ * Save recommended neighborhoods for a user
+ * @param {string} userId - The user ID
+ * @param {Array} neighborhoods - Array of recommended neighborhoods
+ * @returns {boolean} - Whether the operation was successful
+ */
+export const saveRecommendedNeighborhoods = (userId, neighborhoods) => {
+  return saveUserData(userId, { recommendedNeighborhoods: neighborhoods });
+};
+
+/**
+ * Save selected neighborhood for a user
+ * @param {string} userId - The user ID
+ * @param {Object} neighborhood - The selected neighborhood
+ * @returns {boolean} - Whether the operation was successful
+ */
+export const saveSelectedNeighborhood = (userId, neighborhood) => {
+  console.log('111111Saving selected neighborhood to userStorage:', neighborhood);
+  return saveUserData(userId, { selectedNeighborhood: neighborhood });
+};
+
+/**
  * Get user preferences
  * @param {string} userId - The user ID
  * @returns {Object|null} - The user preferences or null if not found
@@ -124,6 +146,26 @@ export const getUserAnalysis = (userId) => {
 export const getUserPersona = (userId) => {
   const userData = getUserData(userId);
   return userData ? userData.persona || null : null;
+};
+
+/**
+ * Get recommended neighborhoods for a user
+ * @param {string} userId - The user ID
+ * @returns {Array|null} - Array of recommended neighborhoods or null if not found
+ */
+export const getRecommendedNeighborhoods = (userId) => {
+  const userData = getUserData(userId);
+  return userData ? userData.recommendedNeighborhoods || null : null;
+};
+
+/**
+ * Get selected neighborhood for a user
+ * @param {string} userId - The user ID
+ * @returns {Object|null} - The selected neighborhood or null if not found
+ */
+export const getSelectedNeighborhood = (userId) => {
+  const userData = getUserData(userId);
+  return userData ? userData.selectedNeighborhood || null : null;
 };
 
 /**
@@ -166,9 +208,13 @@ export default {
   saveUserPreferences,
   saveUserAnalysis,
   saveUserPersona,
+  saveRecommendedNeighborhoods,
+  saveSelectedNeighborhood,
   getUserPreferences,
   getUserAnalysis,
   getUserPersona,
+  getRecommendedNeighborhoods,
+  getSelectedNeighborhood,
   clearUserData,
   clearAllUserData
 }; 

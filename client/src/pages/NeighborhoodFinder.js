@@ -4,6 +4,7 @@ import ReviewSelection from '../components/ReviewSelection';
 import NeighborhoodResults from '../components/NeighborhoodResults';
 import GoogleLogin from '../components/GoogleLogin';
 import { API } from '../utils/api';
+import * as userStorage from '../utils/userStorage';
 import '../styles/pages/NeighborhoodFinder.css';
 import { AuthContext } from '../context/AuthContext';
 
@@ -60,6 +61,12 @@ const NeighborhoodFinder = () => {
   };
 
   const handleReviewConfirm = () => {
+    // Store the recommended neighborhoods in userStorage
+    if (user && user.uid && recommendations && recommendations.length > 0) {
+      userStorage.saveRecommendedNeighborhoods(user.uid, recommendations);
+      console.log('Saved recommended neighborhoods to user storage:', recommendations);
+    }
+    
     setCurrentStep('results');
   };
 

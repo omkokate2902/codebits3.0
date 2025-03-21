@@ -1,3 +1,9 @@
 server/venv
 server/.env
 server/codebits3-firebase-adminsdk-fbsvc-d00982fcf5.json
+client/node_modules
+client/.env
+client/.env.local
+client/.env.development.local
+client/.env.test.local
+client/.env.production.local
